@@ -7,6 +7,8 @@ public class UIManager : MonoBehaviour
     public Text objectiveTitleText;
     public Text objectiveDescriptionText;
     public Text progressText;
+    public Text torchStatusText;
+    public Text hintText;
     public GameObject winPanel;
     public GameObject hudPanel;
 
@@ -16,11 +18,13 @@ public class UIManager : MonoBehaviour
         {
             objectiveTitleText.text = "All puzzles complete";
             objectiveDescriptionText.text = "Return to the exit or enjoy the win screen.";
+            SetHint("All puzzles complete. Find the exit or celebrate your victory.");
             return;
         }
 
         objectiveTitleText.text = objective.title;
         objectiveDescriptionText.text = objective.description;
+        SetHint(objective.description);
     }
 
     public void SetProgress(int completed, int required)
@@ -29,6 +33,29 @@ public class UIManager : MonoBehaviour
         {
             progressText.text = $"Puzzles: {completed}/{required}";
         }
+    }
+
+    public void SetTorchStatus(bool isLit, float fuelPercent)
+    {
+        if (torchStatusText == null)
+            return;
+
+        if (!isLit)
+        {
+            torchStatusText.text = "Torch: Out / Unlit";
+        }
+        else
+        {
+            torchStatusText.text = $"Torch: Lit ({Mathf.RoundToInt(fuelPercent * 100f)}%)";
+        }
+    }
+
+    public void SetHint(string hint)
+    {
+        if (hintText == null)
+            return;
+
+        hintText.text = hint;
     }
 
     public void ShowWinScreen()

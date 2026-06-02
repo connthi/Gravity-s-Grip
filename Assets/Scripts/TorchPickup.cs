@@ -4,39 +4,155 @@ using UnityEngine;
 public class TorchPickup : MonoBehaviour
 {
     public string playerTag = "Player";
-    public Transform carryPosition;
     public float pickupRange = 2f;
+    public bool startLit = true;
+    public float maxFuel = 120f;
+    public float burnRate = 1f;
+    public bool autoIgniteOnPickup = true;
+    public string torchTag = "Torch";
 
+    private TorchLight torchLight;
+    private FireSimulation fireSimulation;
+    private Collider torchCollider;
     private bool isCarried;
+    private float currentFuel;
 
-    private void Reset()
+    public bool IsLit => torchLight != null && torchLight.IsLit;
+    public float FuelPercent => maxFuel <= 0f ? 0f : currentFuel / maxFuel;
+
+    private void Awake()
     {
-        Collider collider = GetComponent<Collider>();
-        collider.isTrigger = true;
+        torchLight = GetComponent<TorchLight>();
+        fireSimulation = GetComponent<FireSimulation>();
+        if (fireSimulation == null)
+        {
+            fireSimulation = gameObject.AddComponent<FireSimulation>();
+        }
+
+        torchCollider = GetComponent<Collider>();
+        torchCollider.isTrigger = true;
+
+        currentFuel = maxFuel;
+        if (torchLight != null)
+        {
+            torchLight.SetLit(startLit);
+        }
+
+        if (fireSimulation != null)
+        {
+            if (startLit)
+                fireSimulation.ResumeFire();
+            else
+                fireSimulation.PauseFire();
+        }
+
+        gameObject.tag = startLit ? torchTag : "Untagged";
     }
 
     private void Update()
     {
-        if (isCarried)
-            return;
+        if (IsLit)
+        {
+            BurnFuel();
+        }
 
         if (Input.GetKeyDown(KeyCode.E))
         {
-            Collider[] hits = Physics.OverlapSphere(transform.position, pickupRange);
-            foreach (Collider hit in hits)
+            TryPickup();
+        }
+
+        if (isCarried && Input.GetKeyDown(KeyCode.F))
+        {
+            if (IsLit)
+                Extinguish();
+            else
+                Ignite();
+        }
+    }
+
+    private void BurnFuel()
+    {
+        if (currentFuel <= 0f)
+        {
+            Extinguish();
+            return;
+        }
+
+        currentFuel -= burnRate * Time.deltaTime;
+        currentFuel = Mathf.Max(0f, currentFuel);
+
+        if (currentFuel <= 0f)
+            Extinguish();
+    }
+
+    private void TryPickup()
+    {
+        if (isCarried)
+            return;
+
+        Collider[] hits = Physics.OverlapSphere(transform.position, pickupRange);
+        foreach (Collider hit in hits)
+        {
+            if (hit.CompareTag(playerTag))
             {
-                if (hit.CompareTag(playerTag))
+                PlayerController player = hit.GetComponent<PlayerController>();
+                if (player != null)
                 {
-                    PlayerController player = hit.GetComponent<PlayerController>();
-                    if (player != null && carryPosition != null)
-                    {
-                        player.PickupTorch(gameObject);
-                        isCarried = true;
-                        gameObject.tag = "Torch";
-                        return;
-                    }
+                    player.PickupTorch(gameObject);
+                    return;
                 }
             }
         }
+    }
+
+    public void PickUp(Transform parent)
+    {
+        if (isCarried)
+            return;
+
+        isCarried = true;
+        transform.SetParent(parent);
+        transform.localPosition = Vector3.zero;
+        transform.localRotation = Quaternion.identity;
+        torchCollider.enabled = false;
+        gameObject.tag = torchTag;
+
+        if (autoIgniteOnPickup && !IsLit)
+            Ignite();
+    }
+
+    public void Drop()
+    {
+        if (!isCarried)
+            return;
+
+        isCarried = false;
+        transform.SetParent(null);
+        torchCollider.enabled = true;
+        gameObject.tag = IsLit ? torchTag : "Untagged";
+    }
+
+    public void Ignite()
+    {
+        if (currentFuel <= 0f)
+            return;
+
+        torchLight?.SetLit(true);
+        fireSimulation?.ResumeFire();
+        gameObject.tag = torchTag;
+    }
+
+    public void Extinguish()
+    {
+        torchLight?.SetLit(false);
+        fireSimulation?.PauseFire();
+        gameObject.tag = "Untagged";
+    }
+
+    public void RefillFuel(float amount)
+    {
+        currentFuel = Mathf.Clamp(currentFuel + amount, 0f, maxFuel);
+        if (currentFuel > 0f && startLit)
+            Ignite();
     }
 }

@@ -4,13 +4,18 @@ public class PlayerController : MonoBehaviour
 {
     public float moveSpeed = 4f;
     public float lookSensitivity = 2f;
+    public float jumpForce = 5f;
+    public float groundCheckDistance = 1.1f;
+    public LayerMask groundMask = ~0;
     public Transform cameraHolder;
     public Transform torchHolder;
+    public UIManager uiManager;
 
     private Vector3 gravityDirection = Vector3.down;
     private Vector3 velocity;
-    private GameObject carriedTorch;
+    private TorchPickup carriedTorch;
     private float pitch;
+    private bool isGrounded;
 
     void Start()
     {
@@ -21,13 +26,22 @@ public class PlayerController : MonoBehaviour
         {
             cameraHolder = Camera.main?.transform;
         }
+
+        if (uiManager == null)
+        {
+            uiManager = FindObjectOfType<UIManager>();
+        }
+
+        RefreshUI();
     }
 
     void Update()
     {
         HandleLook();
         HandleMove();
+        HandleJump();
         HandleTorchInput();
+        RefreshUI();
     }
 
     private void HandleLook()
@@ -51,21 +65,25 @@ public class PlayerController : MonoBehaviour
         float strafe = Input.GetAxis("Horizontal");
 
         Vector3 input = transform.forward * forward + transform.right * strafe;
-        Vector3 movement = input.normalized * moveSpeed * Time.deltaTime;
-        transform.position += movement;
+        transform.position += input.normalized * moveSpeed * Time.deltaTime;
 
-        velocity += gravityDirection * 9.81f * Time.deltaTime;
-        transform.position += velocity * Time.deltaTime;
-
-        if (IsGrounded())
+        if (!IsGrounded())
+        {
+            velocity += gravityDirection * 9.81f * Time.deltaTime;
+            transform.position += velocity * Time.deltaTime;
+        }
+        else
         {
             velocity = Vector3.zero;
         }
     }
 
-    private bool IsGrounded()
+    private void HandleJump()
     {
-        return Physics.Raycast(transform.position, gravityDirection, 1.1f);
+        if (Input.GetButtonDown("Jump") && IsGrounded())
+        {
+            velocity -= gravityDirection * jumpForce;
+        }
     }
 
     private void HandleTorchInput()
@@ -76,9 +94,26 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    public void SetGravity(Vector3 newGravity)
+    private void RefreshUI()
     {
-        gravityDirection = newGravity.normalized;
+        if (uiManager == null)
+            return;
+
+        if (carriedTorch != null)
+        {
+            uiManager.SetTorchStatus(carriedTorch.IsLit, carriedTorch.FuelPercent);
+        }
+        else
+        {
+            uiManager.SetTorchStatus(false, 0f);
+        }
+    }
+
+    private bool IsGrounded()
+    {
+        bool grounded = Physics.Raycast(transform.position, gravityDirection, groundCheckDistance, groundMask);
+        isGrounded = grounded;
+        return grounded;
     }
 
     public bool HasTorch()
@@ -86,20 +121,22 @@ public class PlayerController : MonoBehaviour
         return carriedTorch != null;
     }
 
+    public TorchPickup GetCarriedTorch()
+    {
+        return carriedTorch;
+    }
+
     public void PickupTorch(GameObject torch)
     {
         if (torchHolder == null || carriedTorch != null)
             return;
 
-        carriedTorch = torch;
-        carriedTorch.transform.SetParent(torchHolder);
-        carriedTorch.transform.localPosition = Vector3.zero;
-        carriedTorch.transform.localRotation = Quaternion.identity;
-        Collider torchCollider = carriedTorch.GetComponent<Collider>();
-        if (torchCollider != null)
-        {
-            torchCollider.enabled = false;
-        }
+        TorchPickup torchPickup = torch.GetComponent<TorchPickup>();
+        if (torchPickup == null)
+            return;
+
+        carriedTorch = torchPickup;
+        carriedTorch.PickUp(torchHolder);
     }
 
     public void DropTorch()
@@ -107,7 +144,12 @@ public class PlayerController : MonoBehaviour
         if (carriedTorch == null)
             return;
 
-        carriedTorch.transform.SetParent(null);
+        carriedTorch.Drop();
         carriedTorch = null;
+    }
+
+    public bool IsTorchLit()
+    {
+        return carriedTorch != null && carriedTorch.IsLit;
     }
 }

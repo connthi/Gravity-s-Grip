@@ -8,6 +8,7 @@ public class PuzzleManager : MonoBehaviour
     public UIManager uiManager;
     public GameObject winPanel;
     public int requiredPuzzlesToWin = 3;
+    public string allCompleteHint = "All puzzles complete. Find the exit.";
 
     private void Awake()
     {
@@ -68,6 +69,11 @@ public class PuzzleManager : MonoBehaviour
         PuzzleObjective nextObjective = GetNextIncompleteObjective();
         uiManager.SetObjective(nextObjective);
         uiManager.SetProgress(CountCompletedObjectives(), requiredPuzzlesToWin);
+
+        if (nextObjective == null)
+        {
+            uiManager.SetHint(allCompleteHint);
+        }
     }
 
     public PuzzleObjective GetNextIncompleteObjective()
