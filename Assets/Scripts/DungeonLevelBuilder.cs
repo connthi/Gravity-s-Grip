@@ -54,6 +54,10 @@ public class DungeonLevelBuilder : MonoBehaviour
         {
             UIManager uiManager = CreateUI(root.transform);
             manager.uiManager = uiManager;
+            // Ensure any existing player controllers get a reference to the HUD
+            PlayerController existingPlayer = FindAnyObjectByType<PlayerController>();
+            if (existingPlayer != null)
+                existingPlayer.uiManager = uiManager;
         }
         CreateIntroductoryRoom(root.transform);
         CreateGravityCubeRoom(root.transform);
@@ -83,7 +87,8 @@ public class DungeonLevelBuilder : MonoBehaviour
         Light directional = lightGO.AddComponent<Light>();
         directional.type = LightType.Directional;
         directional.color = new Color(1f, 0.96f, 0.84f);
-        directional.intensity = 1f;
+        // Slightly darker, dungeon-y lighting
+        directional.intensity = 0.6f;
         directional.shadows = LightShadows.Soft;
 
         GameObject fillGO = new GameObject("Ambient Fill Light");
@@ -92,9 +97,13 @@ public class DungeonLevelBuilder : MonoBehaviour
 
         Light fill = fillGO.AddComponent<Light>();
         fill.type = LightType.Point;
-        fill.range = 12f;
-        fill.intensity = 0.35f;
+        fill.range = 10f;
+        fill.intensity = 0.15f;
         fill.color = new Color(0.8f, 0.9f, 1f);
+
+        // Reduce global ambient to make rooms darker
+        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+        RenderSettings.ambientLight = new Color(0.06f, 0.06f, 0.06f);
     }
 
     private void CreatePlayerStart(Transform parent)
@@ -143,7 +152,8 @@ public class DungeonLevelBuilder : MonoBehaviour
 
         CreateRoomShell(room.transform, roomWidth, roomDepth, "IntroRoomShell");
 
-        Vector3 torchPos = new Vector3(-4f, 0.45f, 1f);
+        // Nudge the torch slightly inward so it doesn't spawn inside the wall
+        Vector3 torchPos = new Vector3(-3.5f, 0.45f, 1f);
         CreateTorchStation(room.transform, torchPos, "Start Torch", true);
 
         Vector3 panel90Position = new Vector3(-1.5f, 1.5f, 3.5f);
@@ -184,6 +194,14 @@ public class DungeonLevelBuilder : MonoBehaviour
 
         PuzzleDoor door = CreateDoor(room.transform, new Vector3(10f, 1.2f, 0f), Quaternion.Euler(0f, 90f, 0f), "ExitDoor");
         CreateDoorSwitch(room.transform, new Vector3(6.2f, 1.1f, -1.4f), door, "Use your torch to open the exit.");
+        // Create an exit trigger in front of the door that only allows leaving when puzzles complete
+        GameObject exitTrigger = new GameObject("ExitTrigger");
+        exitTrigger.transform.SetParent(room.transform, false);
+        exitTrigger.transform.localPosition = new Vector3(9.2f, 0.5f, 0f);
+        BoxCollider exitCol = exitTrigger.AddComponent<BoxCollider>();
+        exitCol.isTrigger = true;
+        exitCol.size = new Vector3(2f, 2f, 2f);
+        PuzzleExitTrigger pet = exitTrigger.AddComponent<PuzzleExitTrigger>();
     }
 
     private void CreateRoomShell(Transform parent, float width, float depth, string name)
@@ -193,6 +211,34 @@ public class DungeonLevelBuilder : MonoBehaviour
         CreateWall(parent, new Vector3(0f, wallHeight * 0.5f, -depth * 0.5f), new Vector3(width + wallThickness, wallHeight, wallThickness));
         CreateWall(parent, new Vector3(width * 0.5f, wallHeight * 0.5f, 0f), new Vector3(wallThickness, wallHeight, depth));
         CreateWall(parent, new Vector3(-width * 0.5f, wallHeight * 0.5f, 0f), new Vector3(wallThickness, wallHeight, depth));
+        // Add a ceiling to close the room and improve visuals
+        CreateCeiling(parent, width, depth);
+    }
+
+    private void CreateCeiling(Transform parent, float width, float depth)
+    {
+        // Try to use an imported ceiling model from Resources (WallA), fall back to cube primitive
+        GameObject ceilingPrefab = LoadModelResource("WallA", "wallA", "ceiling");
+        GameObject ceiling;
+        if (ceilingPrefab != null)
+        {
+            ceiling = Instantiate(ceilingPrefab, parent);
+            ceiling.name = "Ceiling";
+            ceiling.transform.localPosition = new Vector3(0f, wallHeight, 0f);
+            ceiling.transform.localRotation = Quaternion.identity;
+            ceiling.transform.localScale = new Vector3(width + wallThickness, 0.2f, depth + wallThickness);
+            ApplyColor(ceiling, stoneColor);
+        }
+        else
+        {
+            ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            ceiling.name = "Ceiling";
+            ceiling.transform.SetParent(parent, false);
+            // Place the ceiling at the top of the walls
+            ceiling.transform.localPosition = new Vector3(0f, wallHeight, 0f);
+            ceiling.transform.localScale = new Vector3(width + wallThickness, 0.2f, depth + wallThickness);
+            ApplyColor(ceiling, stoneColor);
+        }
     }
 
     private void CreateFloor(Transform parent, Vector3 center, Vector3 scale)
@@ -207,12 +253,42 @@ public class DungeonLevelBuilder : MonoBehaviour
 
     private void CreateWall(Transform parent, Vector3 center, Vector3 scale)
     {
-        GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        wall.name = "Wall";
-        wall.transform.SetParent(parent, false);
-        wall.transform.localPosition = center;
-        wall.transform.localScale = scale;
-        ApplyColor(wall, stoneColor);
+        // Try to use an imported wall model from Resources (WallB), fall back to cube primitive
+        GameObject wallPrefab = LoadModelResource("WallB", "wallB", "wall");
+        GameObject wall;
+        if (wallPrefab != null)
+        {
+            wall = Instantiate(wallPrefab, parent);
+            wall.name = "Wall";
+            wall.transform.localPosition = center;
+            wall.transform.localRotation = Quaternion.identity;
+            wall.transform.localScale = scale;
+            ApplyColor(wall, stoneColor);
+        }
+        else
+        {
+            wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            wall.name = "Wall";
+            wall.transform.SetParent(parent, false);
+            wall.transform.localPosition = center;
+            wall.transform.localScale = scale;
+            ApplyColor(wall, stoneColor);
+        }
+    }
+
+    private GameObject LoadModelResource(params string[] names)
+    {
+        foreach (string n in names)
+        {
+            if (string.IsNullOrEmpty(n))
+                continue;
+
+            GameObject prefab = Resources.Load<GameObject>(n);
+            if (prefab != null)
+                return prefab;
+        }
+
+        return null;
     }
 
     private void CreatePlatform(Transform parent, Vector3 center, Vector3 scale, string name)
@@ -421,8 +497,10 @@ public class DungeonLevelBuilder : MonoBehaviour
 
     private Text CreateUIText(Transform parent, string text, Vector2 position, int fontSize, TextAnchor anchor)
     {
-        GameObject textGO = new GameObject("Text");
+        GameObject textGO = new GameObject("HUD_Text_" + text);
         textGO.transform.SetParent(parent, false);
+        // ensure this text is rendered above the background panel
+        textGO.transform.SetAsLastSibling();
 
         RectTransform rect = textGO.AddComponent<RectTransform>();
         rect.anchorMin = new Vector2(0f, 1f);
@@ -436,16 +514,15 @@ public class DungeonLevelBuilder : MonoBehaviour
         uiText.fontSize = fontSize;
         uiText.alignment = anchor;
         uiText.color = Color.white;
+        // Use LegacyRuntime.ttf (valid built-in) and fall back to OS fonts if missing
         uiText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (uiText.font == null)
-        {
             uiText.font = Font.CreateDynamicFontFromOSFont("Arial", fontSize);
-        }
-
         if (uiText.font == null)
-        {
             uiText.font = Font.CreateDynamicFontFromOSFont("Helvetica", fontSize);
-        }
+
+        uiText.enabled = true;
+        uiText.fontStyle = FontStyle.Normal;
 
         uiText.horizontalOverflow = HorizontalWrapMode.Wrap;
         uiText.verticalOverflow = VerticalWrapMode.Truncate;
@@ -468,6 +545,11 @@ public class DungeonLevelBuilder : MonoBehaviour
 
         Material material = new Material(Shader.Find("Standard"));
         material.color = color;
+        // Reduce metallic/smoothness to avoid blotchy/specular artifacts
+        if (material.HasProperty("_Metallic"))
+            material.SetFloat("_Metallic", 0f);
+        if (material.HasProperty("_Glossiness"))
+            material.SetFloat("_Glossiness", 0.25f);
         renderer.material = material;
     }
 }

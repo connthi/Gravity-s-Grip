@@ -8,11 +8,15 @@ public class TorchPickup : MonoBehaviour
     public float maxFuel = 120f;
     public float burnRate = 1f;
     public bool autoIgniteOnPickup = true;
+    public bool autoPickupOnApproach = true;
+    public float autoPickupRadius = 0.6f;
 
     private TorchLight torchLight;
     private FireSimulation fireSimulation;
     private Collider torchCollider;
     private bool isCarried;
+    private Vector3 originalScale;
+    private Transform lastParent;
     private float currentFuel;
 
     public bool IsLit => torchLight != null && torchLight.IsLit;
@@ -29,6 +33,8 @@ public class TorchPickup : MonoBehaviour
 
         torchCollider = GetComponent<Collider>();
         torchCollider.isTrigger = true;
+
+        originalScale = transform.localScale;
 
         currentFuel = maxFuel;
         if (torchLight != null)
@@ -55,6 +61,21 @@ public class TorchPickup : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.E))
         {
             TryPickup();
+        }
+
+        // Auto-pickup when the player walks through the torch
+        if (!isCarried && autoPickupOnApproach)
+        {
+            Collider[] hits = Physics.OverlapSphere(transform.position, autoPickupRadius);
+            foreach (Collider hit in hits)
+            {
+                PlayerController player = hit.GetComponent<PlayerController>();
+                if (player != null)
+                {
+                    player.PickupTorch(gameObject);
+                    return;
+                }
+            }
         }
 
         if (isCarried && Input.GetKeyDown(KeyCode.F))
@@ -104,9 +125,13 @@ public class TorchPickup : MonoBehaviour
             return;
 
         isCarried = true;
+        lastParent = parent;
         transform.SetParent(parent);
-        transform.localPosition = Vector3.zero;
-        transform.localRotation = Quaternion.identity;
+        // Hold the torch upright in the player's hand with a slight forward tilt so the flame is visible
+        transform.localPosition = new Vector3(0.15f, -0.18f, 0.4f);
+        transform.localRotation = Quaternion.Euler(20f, 0f, 0f);
+        // Scale down when carried so it doesn't dominate the view
+        transform.localScale = originalScale * 0.45f;
         torchCollider.enabled = false;
 
         if (autoIgniteOnPickup && !IsLit)
@@ -119,7 +144,15 @@ public class TorchPickup : MonoBehaviour
             return;
 
         isCarried = false;
+        // Place in front of the previous holder when dropping
+        Transform parent = lastParent;
         transform.SetParent(null);
+        if (parent != null)
+        {
+            transform.position = parent.position + parent.forward * 0.6f + parent.up * -0.2f;
+        }
+        // Restore original scale
+        transform.localScale = originalScale;
         torchCollider.enabled = true;
     }
 

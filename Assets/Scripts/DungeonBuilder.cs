@@ -95,13 +95,17 @@ public class DungeonBuilder : MonoBehaviour
 
     private void EnsureTorchObject()
     {
+        // If the runtime DungeonLevelBuilder is creating the scene, don't spawn the legacy default torch.
+        if (FindAnyObjectByType<DungeonLevelBuilder>() != null)
+            return;
+
         TorchPickup existingTorch = FindAnyObjectByType<TorchPickup>();
         if (existingTorch != null)
             return;
 
         GameObject torch = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         torch.name = "DefaultTorch";
-        torch.transform.SetParent(transform.parent, false);
+        torch.transform.SetParent(transform, false);
         torch.transform.position = transform.position + transform.forward * 2f + Vector3.up * 0.5f;
         torch.transform.localScale = new Vector3(0.2f, 0.6f, 0.2f);
 
@@ -113,9 +117,7 @@ public class DungeonBuilder : MonoBehaviour
         torch.AddComponent<TorchLight>();
         torch.AddComponent<FireSimulation>();
 
-        Rigidbody rb = torch.AddComponent<Rigidbody>();
-        rb.useGravity = true;
-        rb.mass = 0.5f;
+        // Do not add a Rigidbody here; keep the torch static so it doesn't fall into geometry.
     }
 
     private void BuildDungeon()

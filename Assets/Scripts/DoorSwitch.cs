@@ -49,20 +49,6 @@ public class DoorSwitch : MonoBehaviour
 
     private TorchPickup GetTorchFromCollider(Collider other)
     {
-        TorchPickup torch = other.GetComponent<TorchPickup>();
-        if (torch != null)
-            return torch;
-
-        try
-        {
-            if (other.CompareTag(requiredTag))
-                return other.GetComponent<TorchPickup>();
-        }
-        catch (UnityException)
-        {
-            // Ignore invalid tag names.
-        }
-
-        return null;
+        return other.GetComponent<TorchPickup>();
     }
 }

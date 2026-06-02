@@ -26,6 +26,9 @@ public class PlayerController : MonoBehaviour
         if (cameraHolder == null)
         {
             Camera mainCam = Camera.main;
+            if (mainCam == null)
+                mainCam = FindAnyObjectByType<Camera>();
+
             if (mainCam != null)
             {
                 cameraHolder = mainCam.transform;
@@ -51,8 +54,13 @@ public class PlayerController : MonoBehaviour
         if (torchHolder == null)
         {
             GameObject torchGO = new GameObject("TorchHolder");
-            torchGO.transform.SetParent(transform, false);
-            torchGO.transform.localPosition = new Vector3(0.2f, 0.4f, 0.5f);
+            // Prefer parenting to the camera so the held torch follows look pitch
+            if (cameraHolder != null)
+                torchGO.transform.SetParent(cameraHolder, false);
+            else
+                torchGO.transform.SetParent(transform, false);
+            // Offset relative to camera: slightly down and to the right, forward a bit
+            torchGO.transform.localPosition = new Vector3(0.3f, -0.2f, 0.6f);
             torchGO.transform.localRotation = Quaternion.identity;
             torchHolder = torchGO.transform;
         }
