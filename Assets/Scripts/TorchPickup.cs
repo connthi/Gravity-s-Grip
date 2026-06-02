@@ -3,13 +3,11 @@ using UnityEngine;
 [RequireComponent(typeof(Collider))]
 public class TorchPickup : MonoBehaviour
 {
-    public string playerTag = "Player";
     public float pickupRange = 2f;
     public bool startLit = true;
     public float maxFuel = 120f;
     public float burnRate = 1f;
     public bool autoIgniteOnPickup = true;
-    public string torchTag = "Torch";
 
     private TorchLight torchLight;
     private FireSimulation fireSimulation;
@@ -45,8 +43,6 @@ public class TorchPickup : MonoBehaviour
             else
                 fireSimulation.PauseFire();
         }
-
-        SafeSetTag(startLit ? torchTag : "Untagged");
     }
 
     private void Update()
@@ -112,7 +108,6 @@ public class TorchPickup : MonoBehaviour
         transform.localPosition = Vector3.zero;
         transform.localRotation = Quaternion.identity;
         torchCollider.enabled = false;
-        SafeSetTag(torchTag);
 
         if (autoIgniteOnPickup && !IsLit)
             Ignite();
@@ -126,7 +121,6 @@ public class TorchPickup : MonoBehaviour
         isCarried = false;
         transform.SetParent(null);
         torchCollider.enabled = true;
-        SafeSetTag(IsLit ? torchTag : "Untagged");
     }
 
     public void Ignite()
@@ -139,8 +133,6 @@ public class TorchPickup : MonoBehaviour
 
         if (fireSimulation != null)
             fireSimulation.ResumeFire();
-
-        gameObject.tag = torchTag;
     }
 
     public void Extinguish()
@@ -150,8 +142,6 @@ public class TorchPickup : MonoBehaviour
 
         if (fireSimulation != null)
             fireSimulation.PauseFire();
-
-        SafeSetTag("Untagged");
     }
 
     public void RefillFuel(float amount)
@@ -161,15 +151,4 @@ public class TorchPickup : MonoBehaviour
             Ignite();
     }
 
-    private void SafeSetTag(string desiredTag)
-    {
-        try
-        {
-            gameObject.tag = desiredTag;
-        }
-        catch (UnityException)
-        {
-            gameObject.tag = "Untagged";
-        }
-    }
 }

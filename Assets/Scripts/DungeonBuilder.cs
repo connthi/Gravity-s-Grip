@@ -74,7 +74,7 @@ public class DungeonBuilder : MonoBehaviour
 
     private void EnsureDirectionalLight()
     {
-        Light[] allLights = FindObjectsByType<Light>(FindObjectsSortMode.None);
+        Light[] allLights = FindObjectsByType<Light>();
         foreach (Light existingLight in allLights)
         {
             if (existingLight != null && existingLight.type == LightType.Directional)
