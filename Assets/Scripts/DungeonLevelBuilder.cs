@@ -1,9 +1,11 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 [DisallowMultipleComponent]
 public class DungeonLevelBuilder : MonoBehaviour
 {
     public bool buildOnStart = true;
+    public bool createUI = true;
     public float wallHeight = 3.5f;
     public float wallThickness = 0.5f;
     public Color stoneColor = new Color(0.16f, 0.16f, 0.16f);
@@ -13,6 +15,18 @@ public class DungeonLevelBuilder : MonoBehaviour
     public Color torchStandColor = new Color(0.12f, 0.08f, 0.04f);
 
     private bool built;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void EnsureSceneBootstrapper()
+    {
+        if (FindAnyObjectByType<DungeonLevelBuilder>() == null)
+        {
+            GameObject bootstrapper = new GameObject("SceneBootstrapper");
+            DungeonLevelBuilder builder = bootstrapper.AddComponent<DungeonLevelBuilder>();
+            builder.buildOnStart = true;
+            builder.createUI = true;
+        }
+    }
 
     private void Start()
     {
@@ -35,7 +49,12 @@ public class DungeonLevelBuilder : MonoBehaviour
 
         CreateLighting(root.transform);
         CreatePlayerStart(root.transform);
-        CreatePuzzleManager(root.transform);
+        PuzzleManager manager = CreatePuzzleManager(root.transform);
+        if (createUI && manager != null)
+        {
+            UIManager uiManager = CreateUI(root.transform);
+            manager.uiManager = uiManager;
+        }
         CreateIntroductoryRoom(root.transform);
         CreateGravityCubeRoom(root.transform);
 
@@ -98,15 +117,16 @@ public class DungeonLevelBuilder : MonoBehaviour
         capsule.center = new Vector3(0f, 0.9f, 0f);
     }
 
-    private void CreatePuzzleManager(Transform parent)
+    private PuzzleManager CreatePuzzleManager(Transform parent)
     {
         if (FindAnyObjectByType<PuzzleManager>() != null)
-            return;
+            return FindAnyObjectByType<PuzzleManager>();
 
         GameObject managerGO = new GameObject("PuzzleManager");
         managerGO.transform.SetParent(parent, false);
         PuzzleManager manager = managerGO.AddComponent<PuzzleManager>();
         manager.requiredPuzzlesToWin = 2;
+        return manager;
     }
 
     private void CreateIntroductoryRoom(Transform parent)
@@ -340,6 +360,92 @@ public class DungeonLevelBuilder : MonoBehaviour
         ApplyColor(cube, cubeColor);
 
         CreateLabel(cube.transform, "Gravity Cube", new Vector3(0f, 0.75f, 0f), 0.15f);
+    }
+
+    private UIManager CreateUI(Transform parent)
+    {
+        GameObject canvasGO = new GameObject("HUD Canvas");
+        canvasGO.transform.SetParent(parent, false);
+
+        Canvas canvas = canvasGO.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvasGO.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        canvasGO.AddComponent<GraphicRaycaster>();
+
+        GameObject hudPanel = new GameObject("HUD Panel");
+        hudPanel.transform.SetParent(canvasGO.transform, false);
+
+        RectTransform hudRect = hudPanel.AddComponent<RectTransform>();
+        hudRect.anchorMin = new Vector2(0f, 1f);
+        hudRect.anchorMax = new Vector2(0f, 1f);
+        hudRect.pivot = new Vector2(0f, 1f);
+        hudRect.anchoredPosition = new Vector2(10f, -10f);
+        hudRect.sizeDelta = new Vector2(380f, 140f);
+
+        Image hudImage = hudPanel.AddComponent<Image>();
+        hudImage.color = new Color(0f, 0f, 0f, 0.45f);
+
+        UIManager uiManager = hudPanel.AddComponent<UIManager>();
+        uiManager.hudPanel = hudPanel;
+
+        uiManager.objectiveTitleText = CreateUIText(hudPanel.transform, "Objective", new Vector2(10f, -10f), 20, TextAnchor.UpperLeft);
+        uiManager.objectiveDescriptionText = CreateUIText(hudPanel.transform, "Description", new Vector2(10f, -35f), 16, TextAnchor.UpperLeft);
+        uiManager.progressText = CreateUIText(hudPanel.transform, "Puzzles: 0/0", new Vector2(10f, -75f), 16, TextAnchor.UpperLeft);
+        uiManager.torchStatusText = CreateUIText(hudPanel.transform, "Torch: Out", new Vector2(10f, -100f), 16, TextAnchor.UpperLeft);
+        uiManager.hintText = CreateUIText(hudPanel.transform, "Hint: Use your torch to power doors.", new Vector2(10f, -122f), 14, TextAnchor.UpperLeft);
+
+        if (uiManager.objectiveTitleText == null || uiManager.objectiveDescriptionText == null || uiManager.progressText == null || uiManager.torchStatusText == null || uiManager.hintText == null)
+        {
+            Debug.LogWarning("DungeonLevelBuilder: UI text creation failed. Check that Unity UI is available.");
+        }
+
+        GameObject winPanel = new GameObject("Win Panel");
+        winPanel.transform.SetParent(canvasGO.transform, false);
+
+        RectTransform winRect = winPanel.AddComponent<RectTransform>();
+        winRect.anchorMin = new Vector2(0.5f, 0.5f);
+        winRect.anchorMax = new Vector2(0.5f, 0.5f);
+        winRect.pivot = new Vector2(0.5f, 0.5f);
+        winRect.anchoredPosition = Vector2.zero;
+        winRect.sizeDelta = new Vector2(600f, 220f);
+
+        Image winImage = winPanel.AddComponent<Image>();
+        winImage.color = new Color(0f, 0f, 0f, 0.75f);
+
+        Text winText = CreateUIText(winPanel.transform, "Puzzle Complete!", new Vector2(0f, 0f), 32, TextAnchor.MiddleCenter);
+        winText.color = Color.yellow;
+        uiManager.winPanel = winPanel;
+        winPanel.SetActive(false);
+
+        return uiManager;
+    }
+
+    private Text CreateUIText(Transform parent, string text, Vector2 position, int fontSize, TextAnchor anchor)
+    {
+        GameObject textGO = new GameObject("Text");
+        textGO.transform.SetParent(parent, false);
+
+        RectTransform rect = textGO.AddComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 1f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = new Vector2(360f, 28f);
+
+        Text uiText = textGO.AddComponent<Text>();
+        uiText.text = text;
+        uiText.fontSize = fontSize;
+        uiText.alignment = anchor;
+        uiText.color = Color.white;
+        uiText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (uiText.font == null)
+        {
+            uiText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        }
+        uiText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        uiText.verticalOverflow = VerticalWrapMode.Truncate;
+
+        return uiText;
     }
 
     private void CreateLabel(Transform parent, string labelText, Vector3 localPosition, float size)
