@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Gravity's Grip is a first-person puzzle and exploration game built around shifting gravity and environmental interaction. Players navigate a mysterious building of interconnected rooms where gravity can change direction, walls become floors, and torches activate thermal mechanisms.
+Gravity's Grip is a first-person puzzle and exploration game built around shifting gravity and environment-driven interactions. Players navigate a mysterious building of interconnected rooms where gravity can change directions, surfaces become new floors, and torches power switches and unlock paths.
 
 Key features:
 - First-person player controller with mouse look and movement
@@ -20,7 +20,43 @@ Key features:
 
 ## Current Status
 
-This repository contains the project proposal and planning notes for the Gravity's Grip artifact. The Unity project itself will be added and linked as development progresses.
+A basic Unity prototype layout has been added and is ready for demo testing. The project now includes a starter scene, core gameplay scripts, and a simple puzzle flow with torch pickup, gravity triggers, and a door switch.
+
+## Repository Structure
+
+- `Assets/Scenes/` – Unity scene files, including the starter `Main.unity`
+- `Assets/Scripts/` – gameplay scripts such as `PlayerController`, `TorchPickup`, and `SimpleGravityTrigger`
+- `Assets/Prefabs/` – reusable prefab assets for torches, doors, and triggers
+- `Assets/Materials/` – material assets for level surfaces and objects
+- `Assets/Textures/` – textures used for environment and props
+- `Assets/Models/` – 3D models and static geometry
+- `Assets/Audio/` – sound effects and music
+- `Assets/Shaders/` – custom shader assets for visual polish
+- `Assets/Animation/` – animation assets for game objects
+- `Assets/UI/` – menu and HUD elements
+- `Assets/Particles/` – particle systems for fire and atmosphere
+- `Packages/` – Unity package manifest
+- `ProjectSettings/` – Unity project settings files
+- `docs/` – proposal, checkpoint, presentation, and artifact documentation
+
+## Demo Layout
+
+The current playable demo layout contains:
+- A player object with first-person controller and camera setup
+- A floor plane with collider for navigation
+- A torch pickup object with light and pickup behavior
+- A gravity trigger that changes player gravity direction
+- A door with an openable state
+- A door switch trigger that opens the door when the torch enters it
+
+## How to Run the Demo
+
+1. Open the project in Unity 2023.3 or later.
+2. Open `Assets/Scenes/Main.unity`.
+3. Assign the `PlayerController` script to the `Player` object.
+4. Configure the `cameraHolder` reference to the camera transform and `torchHolder` to the torch carry position.
+5. Add `TorchPickup`, `SimpleGravityTrigger`, and `DoorSwitch` scripts to the matching scene objects.
+6. Press Play and use mouse + WASD to move.
 
 ## Week 1 Completion Plan
 
