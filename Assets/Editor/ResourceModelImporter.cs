@@ -32,6 +32,33 @@ public static class ResourceModelImporter
 
         PrefabUtility.SaveAsPrefabAsset(asset, prefabPath);
         Debug.Log($"Created Resource prefab: {prefabPath}");
+
+        // Make sure the generated prefab has colliders on its mesh parts so geometry is solid.
+        GameObject prefabContents = PrefabUtility.LoadPrefabContents(prefabPath);
+        if (prefabContents != null)
+        {
+            AddMeshColliders(prefabContents);
+            PrefabUtility.SaveAsPrefabAsset(prefabContents, prefabPath);
+            PrefabUtility.UnloadPrefabContents(prefabContents);
+        }
+    }
+
+    private static void AddMeshColliders(GameObject root)
+    {
+        MeshFilter[] meshFilters = root.GetComponentsInChildren<MeshFilter>(true);
+        foreach (MeshFilter filter in meshFilters)
+        {
+            if (filter.sharedMesh == null)
+                continue;
+
+            Collider existingCollider = filter.GetComponent<Collider>();
+            if (existingCollider == null)
+            {
+                MeshCollider collider = filter.gameObject.AddComponent<MeshCollider>();
+                collider.sharedMesh = filter.sharedMesh;
+                collider.convex = false;
+            }
+        }
     }
 }
 #endif

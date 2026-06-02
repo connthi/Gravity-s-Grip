@@ -5,7 +5,7 @@ using UnityEngine.UI;
 public class DungeonLevelBuilder : MonoBehaviour
 {
     public bool buildOnStart = true;
-    public bool createUI = true;
+    public bool createUI = false;
     public float wallHeight = 3.5f;
     public float wallThickness = 0.5f;
     public Color stoneColor = new Color(0.16f, 0.16f, 0.16f);
@@ -24,7 +24,7 @@ public class DungeonLevelBuilder : MonoBehaviour
             GameObject bootstrapper = new GameObject("SceneBootstrapper");
             DungeonLevelBuilder builder = bootstrapper.AddComponent<DungeonLevelBuilder>();
             builder.buildOnStart = true;
-            builder.createUI = true;
+            builder.createUI = false;
         }
     }
 
@@ -150,7 +150,7 @@ public class DungeonLevelBuilder : MonoBehaviour
         room.transform.SetParent(parent, false);
         room.transform.localPosition = roomOffset;
 
-        CreateRoomShell(room.transform, roomWidth, roomDepth, "IntroRoomShell");
+        CreateRoomShell(room.transform, roomWidth, roomDepth, "IntroRoomShell", true, false);
 
         // Nudge the torch slightly inward so it doesn't spawn inside the wall
         Vector3 torchPos = new Vector3(-3.5f, 0.45f, 1f);
@@ -165,12 +165,12 @@ public class DungeonLevelBuilder : MonoBehaviour
         CreateGrate(room.transform, new Vector3(1.4f, 0.05f, 2f), new Vector3(2.4f, 0.05f, 2.4f));
 
         PuzzleDoor door = CreateDoor(room.transform, new Vector3(4f, 1.2f, 0f), Quaternion.Euler(0f, 90f, 0f), "IntroDoor");
-        CreateDoorSwitch(room.transform, new Vector3(1.5f, 1.1f, 3.4f), door, "Light the photocell with your torch.");
+        door.OpenDoor();
     }
 
     private void CreateGravityCubeRoom(Transform parent)
     {
-        Vector3 roomOffset = new Vector3(14.5f, 0f, 0f);
+        Vector3 roomOffset = new Vector3(9f, 0f, 0f);
         float roomWidth = 10f;
         float roomDepth = 9f;
 
@@ -178,7 +178,7 @@ public class DungeonLevelBuilder : MonoBehaviour
         room.transform.SetParent(parent, false);
         room.transform.localPosition = roomOffset;
 
-        CreateRoomShell(room.transform, roomWidth, roomDepth, "CubeRoomShell");
+        CreateRoomShell(room.transform, roomWidth, roomDepth, "CubeRoomShell", false, true);
 
         Vector3 cubeStart = new Vector3(1.8f, 0.5f, -2.5f);
         CreateGravityCube(room.transform, cubeStart);
@@ -204,41 +204,28 @@ public class DungeonLevelBuilder : MonoBehaviour
         PuzzleExitTrigger pet = exitTrigger.AddComponent<PuzzleExitTrigger>();
     }
 
-    private void CreateRoomShell(Transform parent, float width, float depth, string name)
+    private void CreateRoomShell(Transform parent, float width, float depth, string name, bool omitEastWall = false, bool omitWestWall = false)
     {
         CreateFloor(parent, new Vector3(0f, 0f, 0f), new Vector3(width, 0.2f, depth));
         CreateWall(parent, new Vector3(0f, wallHeight * 0.5f, depth * 0.5f), new Vector3(width + wallThickness, wallHeight, wallThickness));
         CreateWall(parent, new Vector3(0f, wallHeight * 0.5f, -depth * 0.5f), new Vector3(width + wallThickness, wallHeight, wallThickness));
-        CreateWall(parent, new Vector3(width * 0.5f, wallHeight * 0.5f, 0f), new Vector3(wallThickness, wallHeight, depth));
-        CreateWall(parent, new Vector3(-width * 0.5f, wallHeight * 0.5f, 0f), new Vector3(wallThickness, wallHeight, depth));
+        if (!omitEastWall)
+            CreateWall(parent, new Vector3(width * 0.5f, wallHeight * 0.5f, 0f), new Vector3(wallThickness, wallHeight, depth));
+        if (!omitWestWall)
+            CreateWall(parent, new Vector3(-width * 0.5f, wallHeight * 0.5f, 0f), new Vector3(wallThickness, wallHeight, depth));
         // Add a ceiling to close the room and improve visuals
         CreateCeiling(parent, width, depth);
     }
 
     private void CreateCeiling(Transform parent, float width, float depth)
     {
-        // Try to use an imported ceiling model from Resources (WallA), fall back to cube primitive
-        GameObject ceilingPrefab = LoadModelResource("WallA", "wallA", "ceiling");
-        GameObject ceiling;
-        if (ceilingPrefab != null)
-        {
-            ceiling = Instantiate(ceilingPrefab, parent);
-            ceiling.name = "Ceiling";
-            ceiling.transform.localPosition = new Vector3(0f, wallHeight, 0f);
-            ceiling.transform.localRotation = Quaternion.identity;
-            ceiling.transform.localScale = new Vector3(width + wallThickness, 0.2f, depth + wallThickness);
-            ApplyColor(ceiling, stoneColor);
-        }
-        else
-        {
-            ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            ceiling.name = "Ceiling";
-            ceiling.transform.SetParent(parent, false);
-            // Place the ceiling at the top of the walls
-            ceiling.transform.localPosition = new Vector3(0f, wallHeight, 0f);
-            ceiling.transform.localScale = new Vector3(width + wallThickness, 0.2f, depth + wallThickness);
-            ApplyColor(ceiling, stoneColor);
-        }
+        GameObject ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        ceiling.name = "Ceiling";
+        ceiling.transform.SetParent(parent, false);
+        ceiling.transform.localPosition = new Vector3(0f, wallHeight, 0f);
+        ceiling.transform.localScale = new Vector3(width + wallThickness, 0.2f, depth + wallThickness);
+        ApplyColor(ceiling, stoneColor);
+
     }
 
     private void CreateFloor(Transform parent, Vector3 center, Vector3 scale)
@@ -253,27 +240,14 @@ public class DungeonLevelBuilder : MonoBehaviour
 
     private void CreateWall(Transform parent, Vector3 center, Vector3 scale)
     {
-        // Try to use an imported wall model from Resources (WallB), fall back to cube primitive
-        GameObject wallPrefab = LoadModelResource("WallB", "wallB", "wall");
-        GameObject wall;
-        if (wallPrefab != null)
-        {
-            wall = Instantiate(wallPrefab, parent);
-            wall.name = "Wall";
-            wall.transform.localPosition = center;
-            wall.transform.localRotation = Quaternion.identity;
-            wall.transform.localScale = scale;
-            ApplyColor(wall, stoneColor);
-        }
-        else
-        {
-            wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            wall.name = "Wall";
-            wall.transform.SetParent(parent, false);
-            wall.transform.localPosition = center;
-            wall.transform.localScale = scale;
-            ApplyColor(wall, stoneColor);
-        }
+        GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        wall.name = "Wall";
+        wall.transform.SetParent(parent, false);
+        wall.transform.localPosition = center;
+        wall.transform.localScale = scale;
+        ApplyColor(wall, stoneColor);
+
+        // Add decorative imported wall visuals if available
     }
 
     private GameObject LoadModelResource(params string[] names)
@@ -289,6 +263,144 @@ public class DungeonLevelBuilder : MonoBehaviour
         }
 
         return null;
+    }
+
+    private void CreateDecorativeModel(GameObject source, Transform parent, Vector3 position, Quaternion rotation, Vector3 targetSize, string name)
+    {
+        GameObject wrapper = new GameObject(name);
+        wrapper.transform.SetParent(parent, false);
+        wrapper.transform.localPosition = position;
+        wrapper.transform.localRotation = rotation;
+        wrapper.transform.localScale = Vector3.one;
+
+        GameObject instance = Instantiate(source, wrapper.transform, false);
+        instance.name = source.name;
+        FitModelToSize(instance, targetSize);
+        CenterModelInWrapper(instance);
+        RemoveColliders(instance);
+
+        Renderer[] renderers = instance.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length == 0)
+        {
+            Debug.LogWarning($"DungeonLevelBuilder: decorative prefab '{source.name}' contains no renderers.");
+        }
+        else
+        {
+            Bounds combined = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++)
+                combined.Encapsulate(renderers[i].bounds);
+            Debug.Log($"DungeonLevelBuilder: decorative prefab '{source.name}' bounds {combined.size} center {combined.center} renderers={renderers.Length}");
+        }
+    }
+
+    private void FitModelToSize(GameObject modelRoot, Vector3 targetSize)
+    {
+        modelRoot.transform.localScale = Vector3.one;
+
+        if (!TryGetLocalBounds(modelRoot, out Vector3 localCenter, out Vector3 originalSize))
+            return;
+
+        modelRoot.transform.localPosition = -localCenter;
+
+        Vector3 scale = new Vector3(
+            originalSize.x > 0f ? Mathf.Abs(targetSize.x / originalSize.x) : 1f,
+            originalSize.y > 0f ? Mathf.Abs(targetSize.y / originalSize.y) : 1f,
+            originalSize.z > 0f ? Mathf.Abs(targetSize.z / originalSize.z) : 1f
+        );
+
+        modelRoot.transform.localScale = scale;
+
+        Debug.Log($"DungeonLevelBuilder: FitModelToSize scale={scale} originalSize={originalSize} targetSize={targetSize}");
+
+        if (!TryGetLocalBounds(modelRoot, out localCenter, out originalSize))
+            return;
+
+        modelRoot.transform.localPosition = -localCenter;
+        Debug.Log($"DungeonLevelBuilder: After fit localPos={modelRoot.transform.localPosition} localScale={modelRoot.transform.localScale} fittedSize={originalSize}");
+    }
+
+    private bool TryGetLocalBounds(GameObject root, out Vector3 localCenter, out Vector3 size)
+    {
+        localCenter = Vector3.zero;
+        size = Vector3.zero;
+
+        Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length == 0)
+            return false;
+
+        Vector3 min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+        Vector3 max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+
+        foreach (Renderer renderer in renderers)
+        {
+            Bounds bounds = renderer.bounds;
+            Vector3[] corners = new Vector3[8];
+            corners[0] = bounds.min;
+            corners[1] = new Vector3(bounds.min.x, bounds.min.y, bounds.max.z);
+            corners[2] = new Vector3(bounds.min.x, bounds.max.y, bounds.min.z);
+            corners[3] = new Vector3(bounds.min.x, bounds.max.y, bounds.max.z);
+            corners[4] = new Vector3(bounds.max.x, bounds.min.y, bounds.min.z);
+            corners[5] = new Vector3(bounds.max.x, bounds.min.y, bounds.max.z);
+            corners[6] = new Vector3(bounds.max.x, bounds.max.y, bounds.min.z);
+            corners[7] = bounds.max;
+
+            foreach (Vector3 corner in corners)
+            {
+                Vector3 localCorner = root.transform.InverseTransformPoint(corner);
+                min = Vector3.Min(min, localCorner);
+                max = Vector3.Max(max, localCorner);
+            }
+        }
+
+        localCenter = (min + max) * 0.5f;
+        size = max - min;
+        return true;
+    }
+
+    private void EnsureMeshColliders(GameObject root)
+    {
+        MeshFilter[] meshFilters = root.GetComponentsInChildren<MeshFilter>(true);
+        foreach (MeshFilter filter in meshFilters)
+        {
+            if (filter.sharedMesh == null)
+                continue;
+
+            Collider existingCollider = filter.GetComponent<Collider>();
+            if (existingCollider == null)
+            {
+                MeshCollider collider = filter.gameObject.AddComponent<MeshCollider>();
+                collider.sharedMesh = filter.sharedMesh;
+                collider.convex = false;
+            }
+        }
+    }
+
+    private void RemoveColliders(GameObject root)
+    {
+        Collider[] colliders = root.GetComponentsInChildren<Collider>(true);
+        foreach (Collider collider in colliders)
+        {
+            if (Application.isPlaying)
+                Object.Destroy(collider);
+            else
+                Object.DestroyImmediate(collider);
+        }
+    }
+
+    private void CenterModelInWrapper(GameObject modelRoot)
+    {
+        Renderer[] renderers = modelRoot.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length == 0)
+            return;
+
+        Bounds combinedBounds = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++)
+        {
+            combinedBounds.Encapsulate(renderers[i].bounds);
+        }
+
+        Vector3 localCenter = modelRoot.transform.InverseTransformPoint(combinedBounds.center);
+        modelRoot.transform.localPosition = -localCenter;
     }
 
     private void CreatePlatform(Transform parent, Vector3 center, Vector3 scale, string name)
@@ -539,17 +651,22 @@ public class DungeonLevelBuilder : MonoBehaviour
 
     private void ApplyColor(GameObject target, Color color)
     {
-        Renderer renderer = target.GetComponent<Renderer>();
-        if (renderer == null)
+        Renderer[] renderers = target.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length == 0)
             return;
 
-        Material material = new Material(Shader.Find("Standard"));
-        material.color = color;
-        // Reduce metallic/smoothness to avoid blotchy/specular artifacts
-        if (material.HasProperty("_Metallic"))
-            material.SetFloat("_Metallic", 0f);
-        if (material.HasProperty("_Glossiness"))
-            material.SetFloat("_Glossiness", 0.25f);
-        renderer.material = material;
+        foreach (Renderer renderer in renderers)
+        {
+            if (renderer == null)
+                continue;
+
+            Material material = new Material(Shader.Find("Standard"));
+            material.color = color;
+            if (material.HasProperty("_Metallic"))
+                material.SetFloat("_Metallic", 0f);
+            if (material.HasProperty("_Glossiness"))
+                material.SetFloat("_Glossiness", 0.25f);
+            renderer.material = material;
+        }
     }
 }
