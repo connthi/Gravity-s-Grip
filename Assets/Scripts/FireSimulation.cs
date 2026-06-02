@@ -183,12 +183,6 @@ public class FireSimulation : MonoBehaviour
         );
         sizeOL.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
 
-        var velOL = firePS.velocityOverLifetime;
-        velOL.enabled = true;
-        velOL.x = new ParticleSystem.MinMaxCurve(-0.4f, 0.4f);
-        velOL.y = new ParticleSystem.MinMaxCurve(0f, 0.3f);
-        velOL.z = new ParticleSystem.MinMaxCurve(-0.4f, 0.4f);
-
         var noise = firePS.noise;
         noise.enabled = true;
         noise.strength = 0.3f;
@@ -296,11 +290,6 @@ public class FireSimulation : MonoBehaviour
         rotOL.y = new ParticleSystem.MinMaxCurve(-20f * Mathf.Deg2Rad, 20f * Mathf.Deg2Rad);
         rotOL.z = new ParticleSystem.MinMaxCurve(-15f * Mathf.Deg2Rad, 15f * Mathf.Deg2Rad);
 
-        var velOL = smokePS.velocityOverLifetime;
-        velOL.enabled = true;
-        velOL.x = new ParticleSystem.MinMaxCurve(-0.2f, 0.2f);
-        velOL.z = new ParticleSystem.MinMaxCurve(-0.2f, 0.2f);
-
         var noise = smokePS.noise;
         noise.enabled = true;
         noise.strength = 0.5f;
@@ -370,11 +359,6 @@ public class FireSimulation : MonoBehaviour
             }
         );
         col.color = new ParticleSystem.MinMaxGradient(eGrad);
-
-        var velOL = emberPS.velocityOverLifetime;
-        velOL.enabled = true;
-        velOL.x = new ParticleSystem.MinMaxCurve(-1f, 1f);
-        velOL.z = new ParticleSystem.MinMaxCurve(-1f, 1f);
 
         var noise = emberPS.noise;
         noise.enabled = true;
