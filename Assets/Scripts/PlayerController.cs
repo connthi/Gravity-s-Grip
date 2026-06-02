@@ -30,7 +30,7 @@ public class PlayerController : MonoBehaviour
 
         if (uiManager == null)
         {
-            uiManager = FindObjectOfType<UIManager>();
+            uiManager = FindAnyObjectByType<UIManager>();
         }
 
         RefreshUI();
@@ -147,6 +147,11 @@ public class PlayerController : MonoBehaviour
 
         carriedTorch.Drop();
         carriedTorch = null;
+    }
+
+    public void SetGravity(Vector3 newGravity)
+    {
+        gravityDirection = newGravity.normalized;
     }
 
     public bool IsTorchLit()

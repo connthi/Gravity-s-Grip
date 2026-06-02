@@ -26,7 +26,7 @@ public class PuzzleManager : MonoBehaviour
     {
         if (uiManager == null)
         {
-            uiManager = FindObjectOfType<UIManager>();
+            uiManager = FindAnyObjectByType<UIManager>();
         }
 
         if (winPanel != null)
