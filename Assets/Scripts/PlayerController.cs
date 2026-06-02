@@ -11,6 +11,7 @@ public class PlayerController : MonoBehaviour
     public Transform torchHolder;
     public UIManager uiManager;
 
+    private CharacterController characterController;
     private Vector3 gravityDirection = Vector3.down;
     private Vector3 velocity;
     private TorchPickup carriedTorch;
@@ -61,6 +62,21 @@ public class PlayerController : MonoBehaviour
             uiManager = FindAnyObjectByType<UIManager>();
         }
 
+        characterController = GetComponent<CharacterController>();
+        if (characterController == null)
+        {
+            characterController = gameObject.AddComponent<CharacterController>();
+        }
+
+        if (characterController != null)
+        {
+            characterController.height = 1.8f;
+            characterController.radius = 0.3f;
+            characterController.center = new Vector3(0f, 0.9f, 0f);
+            characterController.stepOffset = 0.3f;
+            characterController.slopeLimit = 45f;
+        }
+
         RefreshUI();
     }
 
@@ -94,16 +110,25 @@ public class PlayerController : MonoBehaviour
         float strafe = Input.GetAxis("Horizontal");
 
         Vector3 input = transform.forward * forward + transform.right * strafe;
-        transform.position += input.normalized * moveSpeed * Time.deltaTime;
+        Vector3 move = input.normalized * moveSpeed;
 
         if (!IsGrounded())
         {
             velocity += gravityDirection * 9.81f * Time.deltaTime;
-            transform.position += velocity * Time.deltaTime;
         }
         else
         {
             velocity = Vector3.zero;
+        }
+
+        if (characterController != null)
+        {
+            characterController.Move((move + velocity) * Time.deltaTime);
+        }
+        else
+        {
+            transform.position += move * Time.deltaTime;
+            transform.position += velocity * Time.deltaTime;
         }
     }
 

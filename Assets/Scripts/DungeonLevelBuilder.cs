@@ -111,10 +111,12 @@ public class DungeonLevelBuilder : MonoBehaviour
         player.lookSensitivity = 2f;
         player.jumpForce = 5f;
 
-        CapsuleCollider capsule = playerGO.AddComponent<CapsuleCollider>();
-        capsule.height = 1.8f;
-        capsule.radius = 0.3f;
-        capsule.center = new Vector3(0f, 0.9f, 0f);
+        CharacterController controller = playerGO.AddComponent<CharacterController>();
+        controller.height = 1.8f;
+        controller.radius = 0.3f;
+        controller.center = new Vector3(0f, 0.9f, 0f);
+        controller.stepOffset = 0.3f;
+        controller.slopeLimit = 45f;
     }
 
     private PuzzleManager CreatePuzzleManager(Transform parent)
@@ -269,9 +271,6 @@ public class DungeonLevelBuilder : MonoBehaviour
         PuzzleObjective objective = trigger.AddComponent<PuzzleObjective>();
         objective.title = "Activate the switch";
         objective.description = objectiveText;
-
-        CreateLabel(trigger.transform, "Photocell", new Vector3(0f, 1.4f, -0.4f), 0.2f);
-        CreateLabel(trigger.transform, "Torch unlocks door", new Vector3(0f, 0.4f, -0.4f), 0.16f);
     }
 
     private void CreateGravityPanel(Transform parent, string name, Vector3 position, Quaternion rotation, Vector3 gravityDirection, string label)
@@ -292,8 +291,6 @@ public class DungeonLevelBuilder : MonoBehaviour
         gravityPanel.gravityDirection = gravityDirection;
         gravityPanel.affectPlayer = true;
         gravityPanel.affectPhysicsObjects = true;
-
-        CreateLabel(panel.transform, label, new Vector3(0f, 0f, -0.2f), 0.25f);
     }
 
     private void CreateGrate(Transform parent, Vector3 position, Vector3 size)
@@ -358,8 +355,6 @@ public class DungeonLevelBuilder : MonoBehaviour
         gravityObject.gravityStrength = 9.81f;
 
         ApplyColor(cube, cubeColor);
-
-        CreateLabel(cube.transform, "Gravity Cube", new Vector3(0f, 0.75f, 0f), 0.15f);
     }
 
     private UIManager CreateUI(Transform parent)
@@ -369,7 +364,11 @@ public class DungeonLevelBuilder : MonoBehaviour
 
         Canvas canvas = canvasGO.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvasGO.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        CanvasScaler scaler = canvasGO.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.matchWidthOrHeight = 0.5f;
         canvasGO.AddComponent<GraphicRaycaster>();
 
         GameObject hudPanel = new GameObject("HUD Panel");
@@ -430,7 +429,7 @@ public class DungeonLevelBuilder : MonoBehaviour
         rect.anchorMax = new Vector2(0f, 1f);
         rect.pivot = new Vector2(0f, 1f);
         rect.anchoredPosition = position;
-        rect.sizeDelta = new Vector2(360f, 28f);
+        rect.sizeDelta = new Vector2(380f, 32f);
 
         Text uiText = textGO.AddComponent<Text>();
         uiText.text = text;
@@ -440,29 +439,25 @@ public class DungeonLevelBuilder : MonoBehaviour
         uiText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (uiText.font == null)
         {
-            uiText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            uiText.font = Font.CreateDynamicFontFromOSFont("Arial", fontSize);
         }
-        uiText.horizontalOverflow = HorizontalWrapMode.Overflow;
+
+        if (uiText.font == null)
+        {
+            uiText.font = Font.CreateDynamicFontFromOSFont("Helvetica", fontSize);
+        }
+
+        uiText.horizontalOverflow = HorizontalWrapMode.Wrap;
         uiText.verticalOverflow = VerticalWrapMode.Truncate;
+        uiText.raycastTarget = false;
+        uiText.resizeTextForBestFit = false;
 
         return uiText;
     }
 
     private void CreateLabel(Transform parent, string labelText, Vector3 localPosition, float size)
     {
-        GameObject label = new GameObject("Label");
-        label.transform.SetParent(parent, false);
-        label.transform.localPosition = localPosition;
-        label.transform.localRotation = Quaternion.identity;
-
-        TextMesh mesh = label.AddComponent<TextMesh>();
-        mesh.text = labelText;
-        mesh.characterSize = size;
-        mesh.fontSize = 64;
-        mesh.anchor = TextAnchor.MiddleCenter;
-        mesh.alignment = TextAlignment.Center;
-        mesh.color = Color.white;
-        mesh.fontStyle = FontStyle.Bold;
+        // Intentional no-op: world labels were creating too much visual clutter.
     }
 
     private void ApplyColor(GameObject target, Color color)

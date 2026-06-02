@@ -14,6 +14,9 @@ public class UIManager : MonoBehaviour
 
     public void SetObjective(PuzzleObjective objective)
     {
+        if (objectiveTitleText == null || objectiveDescriptionText == null)
+            return;
+
         if (objective == null)
         {
             objectiveTitleText.text = "All puzzles complete";
