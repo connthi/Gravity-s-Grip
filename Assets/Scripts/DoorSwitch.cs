@@ -23,7 +23,8 @@ public class DoorSwitch : MonoBehaviour
         if (IsValidActivation(other))
         {
             targetDoor.OpenDoor();
-            objective?.Complete();
+            if (objective != null)
+                objective.Complete();
         }
     }
 

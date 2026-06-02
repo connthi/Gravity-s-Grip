@@ -24,7 +24,8 @@ public class PlayerController : MonoBehaviour
 
         if (cameraHolder == null)
         {
-            cameraHolder = Camera.main?.transform;
+            if (Camera.main != null)
+                cameraHolder = Camera.main.transform;
         }
 
         if (uiManager == null)

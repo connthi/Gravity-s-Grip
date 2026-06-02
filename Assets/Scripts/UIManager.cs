@@ -31,7 +31,7 @@ public class UIManager : MonoBehaviour
     {
         if (progressText != null)
         {
-            progressText.text = $"Puzzles: {completed}/{required}";
+            progressText.text = string.Format("Puzzles: {0}/{1}", completed, required);
         }
     }
 
@@ -46,7 +46,7 @@ public class UIManager : MonoBehaviour
         }
         else
         {
-            torchStatusText.text = $"Torch: Lit ({Mathf.RoundToInt(fuelPercent * 100f)}%)";
+            torchStatusText.text = string.Format("Torch: Lit ({0}%)", Mathf.RoundToInt(fuelPercent * 100f));
         }
     }
 

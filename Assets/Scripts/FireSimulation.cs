@@ -310,7 +310,7 @@ public class FireSimulation : MonoBehaviour
 
         var rend = smokePS.GetComponent<ParticleSystemRenderer>();
         rend.renderMode = ParticleSystemRenderMode.Mesh;
-        rend.mesh = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+        rend.mesh = Resources.GetBuiltinResource(typeof(Mesh), "Cube.fbx") as Mesh;
         rend.sortingOrder = 0;
 
         Material sMat = new Material(Shader.Find("Sprites/Default"));
@@ -437,19 +437,19 @@ public class FireSimulation : MonoBehaviour
     /// <summary>Pause all fire effects.</summary>
     public void PauseFire()
     {
-        firePS?.Pause();
-        smokePS?.Pause();
-        emberPS?.Pause();
-        if (fireLight) fireLight.enabled = false;
+        if (firePS != null) firePS.Pause();
+        if (smokePS != null) smokePS.Pause();
+        if (emberPS != null) emberPS.Pause();
+        if (fireLight != null) fireLight.enabled = false;
     }
 
     /// <summary>Resume all fire effects.</summary>
     public void ResumeFire()
     {
-        firePS?.Play();
-        smokePS?.Play();
-        emberPS?.Play();
-        if (fireLight) fireLight.enabled = true;
+        if (firePS != null) firePS.Play();
+        if (smokePS != null) smokePS.Play();
+        if (emberPS != null) emberPS.Play();
+        if (fireLight != null) fireLight.enabled = true;
     }
 
     /// <summary>Gradually extinguish the fire over a given duration.</summary>
@@ -497,9 +497,9 @@ public class FireSimulation : MonoBehaviour
             yield return null;
         }
 
-        firePS.Stop();
-        smokePS?.Stop();
-        emberPS?.Stop();
-        if (fireLight) fireLight.enabled = false;
+        if (firePS != null) firePS.Stop();
+        if (smokePS != null) smokePS.Stop();
+        if (emberPS != null) emberPS.Stop();
+        if (fireLight != null) fireLight.enabled = false;
     }
 }

@@ -137,15 +137,23 @@ public class TorchPickup : MonoBehaviour
         if (currentFuel <= 0f)
             return;
 
-        torchLight?.SetLit(true);
-        fireSimulation?.ResumeFire();
+        if (torchLight != null)
+            torchLight.SetLit(true);
+
+        if (fireSimulation != null)
+            fireSimulation.ResumeFire();
+
         gameObject.tag = torchTag;
     }
 
     public void Extinguish()
     {
-        torchLight?.SetLit(false);
-        fireSimulation?.PauseFire();
+        if (torchLight != null)
+            torchLight.SetLit(false);
+
+        if (fireSimulation != null)
+            fireSimulation.PauseFire();
+
         gameObject.tag = "Untagged";
     }
 

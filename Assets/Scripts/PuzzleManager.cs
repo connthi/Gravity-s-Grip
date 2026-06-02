@@ -54,7 +54,9 @@ public class PuzzleManager : MonoBehaviour
         }
 
         objective.IsComplete = true;
-        objective.OnComplete?.Invoke();
+        if (objective.OnComplete != null)
+            objective.OnComplete.Invoke();
+
         UpdateUI();
         CheckWinCondition();
     }
@@ -113,7 +115,8 @@ public class PuzzleManager : MonoBehaviour
                 winPanel.SetActive(true);
             }
 
-            uiManager?.ShowWinScreen();
+            if (uiManager != null)
+                uiManager.ShowWinScreen();
         }
     }
 }

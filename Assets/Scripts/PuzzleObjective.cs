@@ -26,7 +26,8 @@ public class PuzzleObjective : MonoBehaviour
         else
         {
             IsComplete = true;
-            OnComplete?.Invoke();
+            if (OnComplete != null)
+                OnComplete.Invoke();
         }
     }
 }
