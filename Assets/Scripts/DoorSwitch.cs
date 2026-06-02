@@ -34,14 +34,14 @@ public class DoorSwitch : MonoBehaviour
         if (torch != null)
             return !requireLitTorch || torch.IsLit;
 
-        if (allowPlayerCarry && other.CompareTag("Player"))
+        if (allowPlayerCarry)
         {
             PlayerController player = other.GetComponent<PlayerController>();
-            if (player == null || !player.HasTorch())
-                return false;
-
-            TorchPickup carried = player.GetCarriedTorch();
-            return carried != null && (!requireLitTorch || carried.IsLit);
+            if (player != null && player.HasTorch())
+            {
+                TorchPickup carried = player.GetCarriedTorch();
+                return carried != null && (!requireLitTorch || carried.IsLit);
+            }
         }
 
         return false;
