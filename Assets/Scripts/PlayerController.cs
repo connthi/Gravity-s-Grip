@@ -24,8 +24,36 @@ public class PlayerController : MonoBehaviour
 
         if (cameraHolder == null)
         {
-            if (Camera.main != null)
-                cameraHolder = Camera.main.transform;
+            Camera mainCam = Camera.main;
+            if (mainCam != null)
+            {
+                cameraHolder = mainCam.transform;
+                if (cameraHolder.parent != transform)
+                {
+                    cameraHolder.SetParent(transform, false);
+                    cameraHolder.localPosition = new Vector3(0f, 0.6f, 0f);
+                    cameraHolder.localRotation = Quaternion.identity;
+                }
+            }
+            else
+            {
+                GameObject cameraGO = new GameObject("Main Camera");
+                cameraGO.tag = "MainCamera";
+                cameraHolder = cameraGO.transform;
+                cameraHolder.SetParent(transform, false);
+                cameraHolder.localPosition = new Vector3(0f, 0.6f, 0f);
+                cameraHolder.localRotation = Quaternion.identity;
+                cameraGO.AddComponent<Camera>();
+            }
+        }
+
+        if (torchHolder == null)
+        {
+            GameObject torchGO = new GameObject("TorchHolder");
+            torchGO.transform.SetParent(transform, false);
+            torchGO.transform.localPosition = new Vector3(0.2f, 0.4f, 0.5f);
+            torchGO.transform.localRotation = Quaternion.identity;
+            torchHolder = torchGO.transform;
         }
 
         if (uiManager == null)
