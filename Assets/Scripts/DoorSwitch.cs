@@ -30,14 +30,9 @@ public class DoorSwitch : MonoBehaviour
 
     private bool IsValidActivation(Collider other)
     {
-        if (other.CompareTag(requiredTag))
-        {
-            TorchPickup torch = other.GetComponent<TorchPickup>();
-            if (torch == null)
-                return false;
-
+        TorchPickup torch = GetTorchFromCollider(other);
+        if (torch != null)
             return !requireLitTorch || torch.IsLit;
-        }
 
         if (allowPlayerCarry && other.CompareTag("Player"))
         {
@@ -50,5 +45,24 @@ public class DoorSwitch : MonoBehaviour
         }
 
         return false;
+    }
+
+    private TorchPickup GetTorchFromCollider(Collider other)
+    {
+        TorchPickup torch = other.GetComponent<TorchPickup>();
+        if (torch != null)
+            return torch;
+
+        try
+        {
+            if (other.CompareTag(requiredTag))
+                return other.GetComponent<TorchPickup>();
+        }
+        catch (UnityException)
+        {
+            // Ignore invalid tag names.
+        }
+
+        return null;
     }
 }

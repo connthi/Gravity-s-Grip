@@ -46,7 +46,7 @@ public class TorchPickup : MonoBehaviour
                 fireSimulation.PauseFire();
         }
 
-        gameObject.tag = startLit ? torchTag : "Untagged";
+        SafeSetTag(startLit ? torchTag : "Untagged");
     }
 
     private void Update()
@@ -93,14 +93,11 @@ public class TorchPickup : MonoBehaviour
         Collider[] hits = Physics.OverlapSphere(transform.position, pickupRange);
         foreach (Collider hit in hits)
         {
-            if (hit.CompareTag(playerTag))
+            PlayerController player = hit.GetComponent<PlayerController>();
+            if (player != null)
             {
-                PlayerController player = hit.GetComponent<PlayerController>();
-                if (player != null)
-                {
-                    player.PickupTorch(gameObject);
-                    return;
-                }
+                player.PickupTorch(gameObject);
+                return;
             }
         }
     }
@@ -115,7 +112,7 @@ public class TorchPickup : MonoBehaviour
         transform.localPosition = Vector3.zero;
         transform.localRotation = Quaternion.identity;
         torchCollider.enabled = false;
-        gameObject.tag = torchTag;
+        SafeSetTag(torchTag);
 
         if (autoIgniteOnPickup && !IsLit)
             Ignite();
@@ -129,7 +126,7 @@ public class TorchPickup : MonoBehaviour
         isCarried = false;
         transform.SetParent(null);
         torchCollider.enabled = true;
-        gameObject.tag = IsLit ? torchTag : "Untagged";
+        SafeSetTag(IsLit ? torchTag : "Untagged");
     }
 
     public void Ignite()
@@ -154,7 +151,7 @@ public class TorchPickup : MonoBehaviour
         if (fireSimulation != null)
             fireSimulation.PauseFire();
 
-        gameObject.tag = "Untagged";
+        SafeSetTag("Untagged");
     }
 
     public void RefillFuel(float amount)
@@ -162,5 +159,17 @@ public class TorchPickup : MonoBehaviour
         currentFuel = Mathf.Clamp(currentFuel + amount, 0f, maxFuel);
         if (currentFuel > 0f && startLit)
             Ignite();
+    }
+
+    private void SafeSetTag(string desiredTag)
+    {
+        try
+        {
+            gameObject.tag = desiredTag;
+        }
+        catch (UnityException)
+        {
+            gameObject.tag = "Untagged";
+        }
     }
 }
