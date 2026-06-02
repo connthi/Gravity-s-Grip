@@ -74,7 +74,7 @@ public class DungeonBuilder : MonoBehaviour
 
     private void EnsureDirectionalLight()
     {
-        Light[] allLights = FindObjectsOfType<Light>();
+        Light[] allLights = FindObjectsByType<Light>(FindObjectsSortMode.None);
         foreach (Light existingLight in allLights)
         {
             if (existingLight != null && existingLight.type == LightType.Directional)
@@ -95,7 +95,7 @@ public class DungeonBuilder : MonoBehaviour
 
     private void EnsureTorchObject()
     {
-        TorchPickup existingTorch = FindObjectOfType<TorchPickup>();
+        TorchPickup existingTorch = FindAnyObjectByType<TorchPickup>();
         if (existingTorch != null)
             return;
 
