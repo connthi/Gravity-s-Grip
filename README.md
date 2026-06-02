@@ -48,6 +48,39 @@ The current playable demo layout contains:
 - A gravity trigger that changes player gravity direction
 - A door with an openable state
 - A door switch trigger that opens the door when the torch enters it
+- A basic HUD showing the active puzzle objective and progress
+- A win screen that appears after all puzzles are completed
+
+## World Depth and Atmosphere
+
+The scene is being expanded with environment detail and atmospheric polish:
+- Decorative props like tables, shelves, vases, and breakable items
+- Throwable objects that the player can grab, carry, and throw
+- Ambient fog and sound to create a more lifelike interior atmosphere
+- Dust motes and warm point lighting to make the space feel lived-in
+- Physics-based interactions for props and breakable decorative objects
+
+## New Immersive Systems
+
+- `PlayerGrabber.cs` enables picking up and throwing props tagged `Throwable`.
+- `ThrowableObject.cs` provides hold/drop/throw behavior for interactive objects.
+- `BreakableProp.cs` lets thrown or dropped objects shatter when impacted.
+- `AmbientAtmosphere.cs` adds fog and ambient audio to make rooms feel realistic.
+- `scene_design.md` documents show how to place props and build depth in each puzzle room.
+
+## Puzzle Flow
+
+The prototype supports three distinct puzzles with increasing difficulty:
+1. Easy: use the torch to activate a door switch and open the first path.
+2. Medium: navigate a gravity-changed room or trigger zone to reach a second objective.
+3. Hard: place a physics object onto a pressure plate or finish a multi-step manipulation task.
+
+## UI and Win Screen
+
+- `UIManager.cs` updates the active objective text and progress counter.
+- `PuzzleManager.cs` tracks puzzle objectives and triggers the win sequence when enough puzzles are complete.
+- `PuzzleObjective.cs` attaches to each puzzle object and registers it with the manager.
+- The win panel is shown automatically when the completion threshold is reached.
 
 ## How to Run the Demo
 
@@ -55,8 +88,10 @@ The current playable demo layout contains:
 2. Open `Assets/Scenes/Main.unity`.
 3. Assign the `PlayerController` script to the `Player` object.
 4. Configure the `cameraHolder` reference to the camera transform and `torchHolder` to the torch carry position.
-5. Add `TorchPickup`, `SimpleGravityTrigger`, and `DoorSwitch` scripts to the matching scene objects.
-6. Press Play and use mouse + WASD to move.
+5. Add `TorchPickup`, `SimpleGravityTrigger`, `DoorSwitch`, `PuzzleManager`, and `UIManager` scripts to the matching scene objects.
+6. Add `PuzzleObjective` components to at least three puzzle objects and wire them to the manager.
+7. Add a Canvas with objective text, progress text, and a win panel; link those objects in `UIManager`.
+8. Press Play and use mouse + WASD to move.
 
 ## Week 1 Completion Plan
 

@@ -4,6 +4,7 @@ using UnityEngine;
 public class DoorSwitch : MonoBehaviour
 {
     public PuzzleDoor targetDoor;
+    public PuzzleObjective objective;
     public string requiredTag = "Torch";
 
     private void Reset()
@@ -14,9 +15,12 @@ public class DoorSwitch : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag(requiredTag) && targetDoor != null)
+        if (!other.CompareTag(requiredTag) || targetDoor == null)
         {
-            targetDoor.OpenDoor();
+            return;
         }
+
+        targetDoor.OpenDoor();
+        objective?.Complete();
     }
 }
