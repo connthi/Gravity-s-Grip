@@ -140,7 +140,7 @@ public class LevelBuilder : MonoBehaviour
 
         // Shared east wall with a doorway opening + door that slides open on approach
         var door = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f),
-            Quaternion.Euler(0f, 90f, 0f), "IntroDoor");
+            Quaternion.identity, "IntroDoor");
         BuildEastWallWithDoorway(room, W, D);
         CreateProximitySwitch(room, new Vector3(W * 0.5f - 2.5f, 1.1f, 0f), door);
     }
@@ -189,7 +189,7 @@ public class LevelBuilder : MonoBehaviour
         CreateTorchStation(room, new Vector3(-9f, 0.45f, 0f), "PuzzleTorch", lit: false);
 
         var exitDoor = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f),
-            Quaternion.Euler(0f, 90f, 0f), "ExitDoor");
+            Quaternion.identity, "ExitDoor");
 
         CreateDoorSwitch(room, new Vector3(8f, 1.1f, -2f), exitDoor,
             "Light the Way", "Carry a lit torch to the switch near the east wall to open the exit.");
@@ -216,7 +216,7 @@ public class LevelBuilder : MonoBehaviour
 
     private PuzzleDoor CreateDoor(Transform parent, Vector3 pos, Quaternion rot, string doorName)
     {
-        var doorGO = CreateBox(parent, doorName, pos, new Vector3(0.4f, 2.4f, 2.2f), doorColor);
+        var doorGO = CreateBox(parent, doorName, pos, new Vector3(0.4f, 2.4f, 2.8f), doorColor);
         doorGO.transform.localRotation = rot;
 
         var closed = new GameObject(doorName + "_Closed");
@@ -412,33 +412,11 @@ public class LevelBuilder : MonoBehaviour
         canvas.gameObject.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
         canvas.gameObject.AddComponent<UnityEngine.UI.GraphicRaycaster>();
 
-        var hud = MakePanel(canvas.transform, "HUD_Panel",
-            new Vector2(0f, 1f), new Vector2(12f, -12f), new Vector2(300f, 155f),
-            new Color(0f, 0f, 0f, 0.6f));
-
-        var objTitle    = MakeTMP(hud.transform,  "—",                          8,  16, Color.white,                    TextAlignmentOptions.TopLeft);
-        MakeSeparator(hud.transform, 30f);
-        var objDesc     = MakeTMP(hud.transform,  "",                          34,  13, new Color(0.85f, 0.85f, 0.85f), TextAlignmentOptions.TopLeft);
-        var progress    = MakeTMP(hud.transform,  $"Puzzles: 0/{puzzlesToWin}", 82,  13, new Color(0.55f, 1f, 0.55f),   TextAlignmentOptions.TopLeft);
-        var torchStatus = MakeTMP(hud.transform,  "Torch: none",               106,  13, new Color(1f, 0.85f, 0.45f),  TextAlignmentOptions.TopLeft);
-        var hint        = MakeTMP(hud.transform,  "",                          130,  12, new Color(0.7f, 0.8f, 1f),    TextAlignmentOptions.TopLeft);
-
-        var ctrl = MakePanel(canvas.transform, "Controls_Panel",
-            new Vector2(0f, 0f), new Vector2(12f, 12f), new Vector2(240f, 148f),
-            new Color(0f, 0f, 0f, 0.55f));
-        MakeTMP(ctrl.transform, "CONTROLS",              8,  11, new Color(1f, 0.75f, 0.2f), TextAlignmentOptions.TopLeft);
-        MakeSeparator(ctrl.transform, 24f);
-        MakeTMP(ctrl.transform, "WASD - Move",          28,  13, Color.white, TextAlignmentOptions.TopLeft);
-        MakeTMP(ctrl.transform, "Mouse - Look",         46,  13, Color.white, TextAlignmentOptions.TopLeft);
-        MakeTMP(ctrl.transform, "Space - Jump",         64,  13, Color.white, TextAlignmentOptions.TopLeft);
-        MakeTMP(ctrl.transform, "E - Pickup  Q - Drop", 82,  13, Color.white, TextAlignmentOptions.TopLeft);
-        MakeTMP(ctrl.transform, "F - Torch  LMB - Throw",100, 13, Color.white, TextAlignmentOptions.TopLeft);
-        MakeTMP(ctrl.transform, "Esc - Pause",          118, 13, Color.white, TextAlignmentOptions.TopLeft);
-
         BuildCrosshair(canvas.transform);
 
-        var ui = hud.AddComponent<UIManager>();
-        ui.Inject(hud, objTitle, objDesc, progress, torchStatus, hint,
+        // Attach UIManager to canvas root so win/pause screens still work.
+        var ui = canvas.gameObject.AddComponent<UIManager>();
+        ui.Inject(canvas.gameObject, null, null, null, null, null,
             BuildWinPanel(canvas.transform),
             BuildPausePanel(canvas.transform));
     }
