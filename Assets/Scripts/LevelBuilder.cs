@@ -134,9 +134,11 @@ public class LevelBuilder : MonoBehaviour
         CreatePlatform(room, new Vector3(2f,  2.2f,  4f), new Vector3(3f, 0.3f, 3f), "Platform_B");
         CreatePlatform(room, new Vector3(5f,  1.0f, -6f), new Vector3(3f, 0.3f, 3f), "Platform_C");
 
-        // Gravity volumes (floor plates + tall triggers)
-        CreateGravityVolume(room, "GravVol_Right", new Vector3(-2f, 0f,  2f), Vector3.right);
-        CreateGravityVolume(room, "GravVol_Down",  new Vector3( 3f, 0f, -3f), Vector3.down);
+        // Gravity volumes — colour-coded: blue=right, yellow=up, purple=forward, green=down(reset)
+        CreateGravityVolume(room, "GravVol_Right",   new Vector3(-4f, 0f,  3f), Vector3.right);
+        CreateGravityVolume(room, "GravVol_Up",      new Vector3( 3f, 0f,  5f), Vector3.up);
+        CreateGravityVolume(room, "GravVol_Forward", new Vector3( 0f, 0f, -5f), Vector3.forward);
+        CreateGravityVolume(room, "GravVol_Down",    new Vector3( 4f, 0f, -2f), Vector3.down);
 
         // Green wall-mounted gravity-reset tiles on every wall — walk to any wall to un-stick
         CreateWallGravityReset(room, "Reset_W",  new Vector3(-W * 0.5f + 0.12f, 1.75f,  0f), new Vector3(0.12f, 2f, 2.5f));
@@ -219,10 +221,13 @@ public class LevelBuilder : MonoBehaviour
 
         CreateGravityCube(room, new Vector3(2f, 0.5f, -4f));
 
-        CreateGravityVolume(room, "GravVol_Up",    new Vector3(-7f, 0f, -6f), Vector3.up);
-        CreateGravityVolume(room, "GravVol_Down",  new Vector3( 4f, 0f,  4f), Vector3.down);
-        CreateGravityVolume(room, "GravVol_Right", new Vector3(-9f, 0f,  3f), Vector3.right);
-        CreateGravityVolume(room, "GravVol_Left",  new Vector3( 9f, 0f, -4f), Vector3.left);
+        // Six gravity directions — colour-coded so the player can learn them visually
+        CreateGravityVolume(room, "GravVol_Up",      new Vector3(-7f, 0f, -5f), Vector3.up);
+        CreateGravityVolume(room, "GravVol_Down",    new Vector3( 4f, 0f,  5f), Vector3.down);
+        CreateGravityVolume(room, "GravVol_Right",   new Vector3(-9f, 0f,  4f), Vector3.right);
+        CreateGravityVolume(room, "GravVol_Left",    new Vector3( 9f, 0f, -3f), Vector3.left);
+        CreateGravityVolume(room, "GravVol_Forward", new Vector3(-4f, 0f,  0f), Vector3.forward);
+        CreateGravityVolume(room, "GravVol_Back",    new Vector3( 5f, 0f, -6f), Vector3.back);
 
         // Green wall-reset tiles on N/S walls (west side is the open doorway, no wall there)
         CreateWallGravityReset(room, "Reset_N",  new Vector3(0f, 1.75f,  D * 0.5f - 0.12f), new Vector3(2.5f, 2f, 0.12f));
@@ -321,6 +326,18 @@ public class LevelBuilder : MonoBehaviour
         gp.SetDirection(gravityDir);
     }
 
+    // Colour each gravity direction so players can learn them visually.
+    private static Color GravityTileColor(Vector3 dir)
+    {
+        if (dir == Vector3.down)    return new Color(0.10f, 0.75f, 0.25f); // green  — reset/floor
+        if (dir == Vector3.up)      return new Color(0.90f, 0.80f, 0.10f); // yellow — ceiling
+        if (dir == Vector3.right)   return new Color(0.15f, 0.40f, 0.90f); // blue   — right wall
+        if (dir == Vector3.left)    return new Color(0.80f, 0.20f, 0.20f); // red    — left wall
+        if (dir == Vector3.forward) return new Color(0.70f, 0.20f, 0.90f); // purple — front wall
+        if (dir == Vector3.back)    return new Color(0.90f, 0.55f, 0.10f); // orange — back wall
+        return new Color(0.12f, 0.44f, 0.74f);
+    }
+
     // Floor-plate gravity marker: a flat coloured tile on the ground plus a tall invisible trigger above it.
     private void CreateGravityVolume(Transform parent, string volName, Vector3 floorPos, Vector3 gravityDir)
     {
@@ -329,7 +346,7 @@ public class LevelBuilder : MonoBehaviour
         // Flat visible tile sitting ON TOP of the floor (floor top surface is at y=0.1)
         CreateBox(parent, volName + "_Tile",
             floorPos + new Vector3(0f, 0.15f, 0f),
-            new Vector3(tileSize, 0.1f, tileSize), panelColor);
+            new Vector3(tileSize, 0.1f, tileSize), GravityTileColor(gravityDir));
 
         // Tall invisible trigger spanning floor-to-ceiling above the tile
         float trigH = wallHeight - 0.2f;
@@ -461,9 +478,10 @@ public class LevelBuilder : MonoBehaviour
 
         BuildCrosshair(canvas.transform);
 
-        // Attach UIManager to canvas root so win/pause screens still work.
+        // Pass null for hudPanel — there is no HUD panel to hide, and passing
+        // canvas.gameObject would disable the whole canvas (including win/pause panels).
         var ui = canvas.gameObject.AddComponent<UIManager>();
-        ui.Inject(canvas.gameObject, null, null, null, null, null,
+        ui.Inject(null, null, null, null, null, null,
             BuildWinPanel(canvas.transform),
             BuildPausePanel(canvas.transform));
     }
