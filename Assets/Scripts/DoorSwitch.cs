@@ -23,9 +23,16 @@ public class DoorSwitch : MonoBehaviour
     {
         if (_triggered || targetDoor == null) return;
 
-        TorchPickup torch = FindTorch(other);
-        if (torch == null) return;
-        if (requireLitTorch && !torch.IsLit) return;
+        if (requireLitTorch)
+        {
+            TorchPickup torch = FindTorch(other);
+            if (torch == null || !torch.IsLit) return;
+        }
+        else
+        {
+            // No torch required — only react to the player, not every stray collider.
+            if (other.GetComponentInParent<PlayerController>() == null) return;
+        }
 
         _triggered = true;
         targetDoor.Open();

@@ -126,7 +126,7 @@ public class LevelBuilder : MonoBehaviour
     {
         const float W = 20f, D = 18f;
         var room = NewRoom("IntroRoom", parent, Vector3.zero);
-        BuildRoomShell(room, W, D, omitEast: true);   // east opening shared with puzzle room
+        BuildRoomShell(room, W, D, omitEast: true);   // east side handled by CreateRoomConnection
 
         CreateTorchStation(room, new Vector3(-8f, 0.45f, 0f), "StartTorch", lit: true);
 
@@ -138,10 +138,33 @@ public class LevelBuilder : MonoBehaviour
         CreateGravityVolume(room, "GravVol_Right", new Vector3(-2f, 0f, 2f),  Vector3.right);
         CreateGravityVolume(room, "GravVol_Down",  new Vector3(3f,  0f, -3f), Vector3.down);
 
-        // Closed door; proximity switch (walk up to it) opens it
+        // Shared east wall with a doorway opening + door that slides open on approach
         var door = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f),
             Quaternion.Euler(0f, 90f, 0f), "IntroDoor");
+        BuildEastWallWithDoorway(room, W, D);
         CreateProximitySwitch(room, new Vector3(W * 0.5f - 2.5f, 1.1f, 0f), door);
+    }
+
+    // Builds the east wall of the intro room with a centred doorway opening (no solid east wall otherwise).
+    private void BuildEastWallWithDoorway(Transform parent, float w, float d)
+    {
+        const float doorwayW = 2.8f;   // slightly wider than door (2.2) for clearance
+        const float doorwayH = 2.6f;   // slightly taller than door (2.4)
+
+        float sideDepth  = (d - doorwayW) * 0.5f;           // 7.6
+        float sideZ      = doorwayW * 0.5f + sideDepth * 0.5f; // 5.2
+        float headerH    = wallHeight - doorwayH;             // 0.9
+        float wallX      = w * 0.5f;
+
+        CreateBox(parent, "WallE_Left",
+            new Vector3(wallX, wallHeight * 0.5f, -sideZ),
+            new Vector3(wallThickness, wallHeight, sideDepth), stoneColor);
+        CreateBox(parent, "WallE_Right",
+            new Vector3(wallX, wallHeight * 0.5f, sideZ),
+            new Vector3(wallThickness, wallHeight, sideDepth), stoneColor);
+        CreateBox(parent, "WallE_Header",
+            new Vector3(wallX, doorwayH + headerH * 0.5f, 0f),
+            new Vector3(wallThickness, headerH, doorwayW + wallThickness), stoneColor);
     }
 
     // ── Room 2: Puzzle Room ───────────────────────────────────────────────────
@@ -256,19 +279,20 @@ public class LevelBuilder : MonoBehaviour
     {
         const float tileSize = 3f;
 
-        // Flat visible tile sitting on the floor
+        // Flat visible tile sitting ON TOP of the floor (floor top surface is at y=0.1)
         CreateBox(parent, volName + "_Tile",
-            floorPos + new Vector3(0f, 0.05f, 0f),
+            floorPos + new Vector3(0f, 0.15f, 0f),
             new Vector3(tileSize, 0.1f, tileSize), panelColor);
 
-        // Tall invisible trigger the player walks through above the tile
+        // Tall invisible trigger spanning floor-to-ceiling above the tile
+        float trigH = wallHeight - 0.2f;
         var trigger = new GameObject(volName + "_Trigger");
         trigger.transform.SetParent(parent, false);
-        trigger.transform.localPosition = floorPos + new Vector3(0f, wallHeight * 0.5f, 0f);
+        trigger.transform.localPosition = floorPos + new Vector3(0f, 0.2f + trigH * 0.5f, 0f);
 
         var col   = trigger.AddComponent<BoxCollider>();
         col.isTrigger = true;
-        col.size  = new Vector3(tileSize, wallHeight, tileSize);
+        col.size  = new Vector3(tileSize, trigH, tileSize);
 
         var gp = trigger.AddComponent<GravityPanel>();
         gp.SetDirection(gravityDir);
@@ -433,6 +457,19 @@ public class LevelBuilder : MonoBehaviour
         return go;
     }
 
+    // Cached TMP font — loaded once and reused. Assets survive PlayMode re-runs so no staleness.
+    private static TMP_FontAsset _hudFont;
+
+    private static TMP_FontAsset GetHudFont()
+    {
+        if (_hudFont != null) return _hudFont;
+        // TMP Essential Resources install path (standard Unity project layout).
+        _hudFont = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+        if (_hudFont == null)
+            _hudFont = TMP_Settings.defaultFontAsset;
+        return _hudFont;
+    }
+
     private static TMP_Text MakeTMP(Transform parent, string content, float topOffset,
         float fontSize, Color color, TextAlignmentOptions align)
     {
@@ -446,6 +483,8 @@ public class LevelBuilder : MonoBehaviour
         rt.sizeDelta        = new Vector2(280f, fontSize + 8f);
 
         var t = go.AddComponent<TextMeshProUGUI>();
+        var font = GetHudFont();
+        if (font != null) t.font = font;
         t.text           = content;
         t.fontSize       = fontSize;
         t.color          = color;
@@ -534,6 +573,8 @@ public class LevelBuilder : MonoBehaviour
         rt.sizeDelta = new Vector2(800f, fontSize + 12f);
 
         var t = go.AddComponent<TextMeshProUGUI>();
+        var font = GetHudFont();
+        if (font != null) t.font = font;
         t.text          = content;
         t.fontSize      = fontSize;
         t.color         = color;

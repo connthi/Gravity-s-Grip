@@ -149,12 +149,12 @@ public class PlayerController : MonoBehaviour
 
     private void TryPickupNearby()
     {
-        // Look for a TorchPickup within reach in front of the camera.
-        Ray ray = new Ray(cameraHolder.position, cameraHolder.forward);
-        if (Physics.Raycast(ray, out RaycastHit hit, 3f))
+        // Sphere overlap so the player doesn't need to aim precisely at the torch.
+        Collider[] hits = Physics.OverlapSphere(transform.position, 2.5f);
+        foreach (var hit in hits)
         {
-            TorchPickup tp = hit.collider.GetComponentInParent<TorchPickup>();
-            if (tp != null) PickupTorch(tp);
+            TorchPickup tp = hit.GetComponentInParent<TorchPickup>();
+            if (tp != null) { PickupTorch(tp); return; }
         }
     }
 
