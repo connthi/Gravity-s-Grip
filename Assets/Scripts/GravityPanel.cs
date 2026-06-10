@@ -28,7 +28,7 @@ public class GravityPanel : MonoBehaviour
             pc.SetGravityDirection(gravityDirection.normalized);
             // Sync every physics object in the scene to the same gravity as the player.
             if (affectRigidbodies)
-                foreach (var gao in FindObjectsByType<GravityAffectedObject>(FindObjectsSortMode.None))
+                foreach (var gao in FindObjectsByType<GravityAffectedObject>())
                     gao.SetGravity(gravityDirection.normalized);
             return;
         }
