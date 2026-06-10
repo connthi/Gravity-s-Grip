@@ -27,7 +27,7 @@ public class LevelBuilder : MonoBehaviour
     [SerializeField] private Color torchStandColor= new Color(0.12f, 0.08f, 0.04f);
 
     [Header("Puzzle settings")]
-    [SerializeField] private int puzzlesToWin = 2;
+    [SerializeField] private int puzzlesToWin = 1;
 
     // ── Unity Lifecycle ───────────────────────────────────────────────────────
 
@@ -81,7 +81,7 @@ public class LevelBuilder : MonoBehaviour
     private void CreatePlayer()
     {
         var go = new GameObject("Player");
-        go.transform.position = new Vector3(-6f, 1.1f, 0f);
+        go.transform.position = new Vector3(-10f, 1.1f, 0f);
 
         var cc    = go.AddComponent<CharacterController>();
         cc.height = 1.8f;
@@ -121,50 +121,73 @@ public class LevelBuilder : MonoBehaviour
         RenderSettings.ambientLight = new Color(0.06f, 0.06f, 0.06f);
     }
 
-    // ── Room 1: Introduction ──────────────────────────────────────────────────
+    // ── Room 1: Introduction (tutorial — shows gravity panels, no locked doors) ─
 
     private void CreateIntroRoom(Transform parent)
     {
+        const float W = 20f, D = 18f;
         var room = NewRoom("IntroRoom", parent, Vector3.zero);
-        BuildRoomShell(room, 8f, 8f, omitEast: true);
+        BuildRoomShell(room, W, D, omitEast: true);
 
-        // Torch near the start
-        CreateTorchStation(room, new Vector3(-3.5f, 0.45f, 1f), "StartTorch", lit: true);
+        // Torch on a stand near the spawn point
+        CreateTorchStation(room, new Vector3(-8f, 0.45f, 0f), "StartTorch", lit: true);
 
-        // Two gravity panels demonstrating direction change
-        CreateGravityPanel(room, "Panel_Right",  new Vector3(-1.5f, 1.5f, 3.5f),
+        // Sign pillar hinting at the next room
+        CreateBox(room, "SignPost", new Vector3(6f, 0.9f, 0f), new Vector3(0.3f, 1.8f, 0.3f), stoneColor);
+
+        // Gravity panels along the north wall — demonstration area
+        CreateGravityPanel(room, "Demo_Right", new Vector3(-2f, wallHeight * 0.5f, D * 0.5f - 0.2f),
             Quaternion.Euler(0f, 180f, 0f), Vector3.right);
-        CreateGravityPanel(room, "Panel_Down",   new Vector3(2.2f,  1.5f, 3.5f),
+        CreateGravityPanel(room, "Demo_Down",  new Vector3(3f,  wallHeight * 0.5f, D * 0.5f - 0.2f),
             Quaternion.Euler(0f, 180f, 0f), Vector3.down);
 
-        // Pre-opened exit door (intro room is a tutorial)
-        var door = CreateDoor(room, new Vector3(4f, 1.2f, 0f), Quaternion.Euler(0f, 90f, 0f), "IntroDoor");
+        // Some platforms to jump on so the room feels populated
+        CreatePlatform(room, new Vector3(-5f, 1.5f, -4f), new Vector3(3f, 0.3f, 3f), "Platform_A");
+        CreatePlatform(room, new Vector3(2f,  2.2f,  4f), new Vector3(3f, 0.3f, 3f), "Platform_B");
+        CreatePlatform(room, new Vector3(5f,  1.0f, -6f), new Vector3(3f, 0.3f, 3f), "Platform_C");
+
+        // Passage east (no lock — tutorial)
+        var door = CreateDoor(room, new Vector3(W * 0.5f, 1.2f, 0f), Quaternion.Euler(0f, 90f, 0f), "IntroDoor");
         door.Open();
     }
 
-    // ── Room 2: Gravity Cube Puzzle ───────────────────────────────────────────
+    // ── Room 2: Main Puzzle (locked exit requires lit torch) ──────────────────
 
     private void CreateGravityCubeRoom(Transform parent)
     {
-        var room = NewRoom("GravityCubeRoom", parent, new Vector3(9f, 0f, 0f));
-        BuildRoomShell(room, 10f, 9f, omitWest: true);
+        const float W = 24f, D = 22f;
+        var room = NewRoom("PuzzleRoom", parent, new Vector3(22f, 0f, 0f));
+        BuildRoomShell(room, W, D, omitWest: true);
 
-        CreateGravityCube(room, new Vector3(1.8f, 0.5f, -2.5f));
+        // Gravity cube the player can carry
+        CreateGravityCube(room, new Vector3(2f, 0.5f, -4f));
 
-        CreateGravityPanel(room, "Panel_Up",     new Vector3(-3.8f, 1.4f, -1.2f),
+        // Gravity panels scattered around the room
+        CreateGravityPanel(room, "Panel_Up",    new Vector3(-8f, wallHeight * 0.5f, -8f),
             Quaternion.Euler(0f, 90f, 0f), Vector3.up);
-        CreateGravityPanel(room, "Panel_Down",   new Vector3(0.5f,  3.1f,  1.8f),
+        CreateGravityPanel(room, "Panel_Down",  new Vector3(3f, wallHeight - 0.1f, 3f),
             Quaternion.Euler(90f, 0f, 0f), Vector3.down);
+        CreateGravityPanel(room, "Panel_Right", new Vector3(-10f, wallHeight * 0.5f, 3f),
+            Quaternion.Euler(0f, 0f, 0f), Vector3.right);
 
-        CreatePlatform(room, new Vector3(0.5f,  2.6f, 1.8f), new Vector3(2.4f, 0.3f, 2.4f), "CeilingPlatform");
-        CreatePlatform(room, new Vector3(-2.4f, 1.1f, 3f),   new Vector3(1.8f, 0.3f, 3.4f), "LandingPlatform");
+        // Elevated platforms reachable after gravity flip
+        CreatePlatform(room, new Vector3(3f,    wallHeight - 0.4f,  3f), new Vector3(4f, 0.3f, 4f), "CeilingPlatform");
+        CreatePlatform(room, new Vector3(-6f,   1.1f,  8f),              new Vector3(4f, 0.3f, 4f), "MidPlatform_A");
+        CreatePlatform(room, new Vector3(5f,    2.5f, -7f),              new Vector3(3f, 0.3f, 3f), "MidPlatform_B");
+        CreatePlatform(room, new Vector3(-9f,   1.0f, -3f),              new Vector3(3f, 0.3f, 5f), "LandingPlatform");
 
-        var exitDoor = CreateDoor(room, new Vector3(5f, 1.2f, 0f), Quaternion.Euler(0f, 90f, 0f), "ExitDoor");
+        // Second torch in the puzzle room so the player has a fallback
+        CreateTorchStation(room, new Vector3(-9f, 0.45f, 0f), "PuzzleTorch", lit: false);
 
-        CreateDoorSwitch(room, new Vector3(3f, 1.1f, -1.4f), exitDoor,
-            "Torch Switch", "Bring your lit torch to open the exit.");
+        // Locked exit door on the east wall
+        var exitDoor = CreateDoor(room, new Vector3(W * 0.5f, 1.2f, 0f), Quaternion.Euler(0f, 90f, 0f), "ExitDoor");
 
-        CreateExitTrigger(room, new Vector3(5.5f, 1f, 0f));
+        // Torch switch — bring a lit torch here to open the exit
+        CreateDoorSwitch(room, new Vector3(8f, 1.1f, -2f), exitDoor,
+            "Light the Way", "Bring a lit torch to the switch near the east wall to open the exit.");
+
+        // Win trigger just past the exit door
+        CreateExitTrigger(room, new Vector3(W * 0.5f + 1f, 1f, 0f));
     }
 
     // ── Room Shell ────────────────────────────────────────────────────────────
@@ -400,14 +423,13 @@ public class LevelBuilder : MonoBehaviour
     {
         var go = new GameObject("T");
         go.transform.SetParent(parent, false);
+        // Simple top-left anchor — no stretch, no offsetMin/Max conflicts.
         var rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0f, 1f);
-        rt.anchorMax = new Vector2(1f, 1f);
-        rt.pivot     = new Vector2(0f, 1f);
-        rt.offsetMin = new Vector2(8f,  0f);
-        rt.offsetMax = new Vector2(-8f, 0f);
-        rt.anchoredPosition = new Vector2(0f, -topOffset);
-        rt.sizeDelta = new Vector2(0f, fontSize + 6f);
+        rt.anchorMin        = new Vector2(0f, 1f);
+        rt.anchorMax        = new Vector2(0f, 1f);
+        rt.pivot            = new Vector2(0f, 1f);
+        rt.anchoredPosition = new Vector2(8f, -topOffset);
+        rt.sizeDelta        = new Vector2(260f, fontSize + 8f);
 
         var t = go.AddComponent<Text>();
         t.text               = content;
@@ -427,13 +449,11 @@ public class LevelBuilder : MonoBehaviour
         var go = new GameObject("Sep");
         go.transform.SetParent(parent, false);
         var rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0f, 1f);
-        rt.anchorMax = new Vector2(1f, 1f);
-        rt.pivot     = new Vector2(0f, 1f);
-        rt.offsetMin = new Vector2(8f, 0f);
-        rt.offsetMax = new Vector2(-8f, 0f);
-        rt.anchoredPosition = new Vector2(0f, -topOffset);
-        rt.sizeDelta = new Vector2(0f, 1f);
+        rt.anchorMin        = new Vector2(0f, 1f);
+        rt.anchorMax        = new Vector2(0f, 1f);
+        rt.pivot            = new Vector2(0f, 1f);
+        rt.anchoredPosition = new Vector2(8f, -topOffset);
+        rt.sizeDelta        = new Vector2(260f, 1f);
         go.AddComponent<Image>().color = new Color(1f, 0.75f, 0.2f, 0.7f);
     }
 
