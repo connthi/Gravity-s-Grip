@@ -1,5 +1,8 @@
 using UnityEngine;
 using UnityEngine.UI;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 /// <summary>
 /// Single authoritative scene builder. Replaces both DungeonBuilder and
@@ -30,8 +33,22 @@ public class LevelBuilder : MonoBehaviour
 
     private void Start()
     {
+        EnsureTag("PuzzleBlock");
         EnsureSingletons();
         BuildScene();
+    }
+
+    private static void EnsureTag(string tag)
+    {
+#if UNITY_EDITOR
+        var tagManager = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
+        var tagsProp   = tagManager.FindProperty("tags");
+        for (int i = 0; i < tagsProp.arraySize; i++)
+            if (tagsProp.GetArrayElementAtIndex(i).stringValue == tag) return;
+        tagsProp.InsertArrayElementAtIndex(tagsProp.arraySize);
+        tagsProp.GetArrayElementAtIndex(tagsProp.arraySize - 1).stringValue = tag;
+        tagManager.ApplyModifiedProperties();
+#endif
     }
 
     // ── Bootstrap Singletons ──────────────────────────────────────────────────
