@@ -68,9 +68,7 @@ public class LevelBuilder : MonoBehaviour
         {
             var go      = new GameObject("ObjectiveTracker");
             var tracker = go.AddComponent<ObjectiveTracker>();
-            // We need to set requiredToWin via serialized field; use
-            // a helper shim since it's [SerializeField] private.
-            // Alternatively set it in the Inspector on this LevelBuilder.
+            tracker.SetRequiredToWin(puzzlesToWin);
         }
 
         // UIManager
@@ -127,27 +125,22 @@ public class LevelBuilder : MonoBehaviour
     {
         const float W = 20f, D = 18f;
         var room = NewRoom("IntroRoom", parent, Vector3.zero);
-        // East wall IS built here; the door opening punches through it visually via PuzzleDoor sliding up
-        BuildRoomShell(room, W, D);
+        BuildRoomShell(room, W, D, omitEast: true);   // east opening shared with puzzle room
 
-        // Torch near spawn — auto-lights when player walks close (autoPickupRadius)
         CreateTorchStation(room, new Vector3(-8f, 0.45f, 0f), "StartTorch", lit: true);
 
-        // Platforms to explore
         CreatePlatform(room, new Vector3(-5f, 1.5f, -4f), new Vector3(3f, 0.3f, 3f), "Platform_A");
         CreatePlatform(room, new Vector3(2f,  2.2f,  4f), new Vector3(3f, 0.3f, 3f), "Platform_B");
         CreatePlatform(room, new Vector3(5f,  1.0f, -6f), new Vector3(3f, 0.3f, 3f), "Platform_C");
 
-        // Walk-through gravity volumes (columns the player walks into, not thin walls)
-        CreateGravityVolume(room, "GravVol_Right", new Vector3(-2f, wallHeight * 0.5f, 2f),
-            new Vector3(2.5f, wallHeight, 2.5f), Vector3.right);
-        CreateGravityVolume(room, "GravVol_Down",  new Vector3(3f,  wallHeight * 0.5f, -3f),
-            new Vector3(2.5f, wallHeight, 2.5f), Vector3.down);
+        // Floor-plate gravity markers — coloured tiles the player steps on
+        CreateGravityVolume(room, "GravVol_Right", new Vector3(-2f, 0f, 2f),  Vector3.right);
+        CreateGravityVolume(room, "GravVol_Down",  new Vector3(3f,  0f, -3f), Vector3.down);
 
-        // Door to puzzle room — closed, opens when player walks into the trigger zone in front of it
+        // Closed door; proximity switch (walk up to it) opens it
         var door = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f),
             Quaternion.Euler(0f, 90f, 0f), "IntroDoor");
-        CreateProximitySwitch(room, new Vector3(W * 0.5f - 2f, 1.1f, 0f), door);
+        CreateProximitySwitch(room, new Vector3(W * 0.5f - 2.5f, 1.1f, 0f), door);
     }
 
     // ── Room 2: Puzzle Room ───────────────────────────────────────────────────
@@ -155,37 +148,27 @@ public class LevelBuilder : MonoBehaviour
     private void CreateGravityCubeRoom(Transform parent)
     {
         const float W = 24f, D = 22f;
-        // Offset so the shared wall between rooms aligns: room1 east wall = room2 west wall = x=10
         var room = NewRoom("PuzzleRoom", parent, new Vector3(22f, 0f, 0f));
-        // Omit west wall — shared with intro room (intro room's east wall serves as the divider)
-        BuildRoomShell(room, W, D, omitWest: true);
+        BuildRoomShell(room, W, D, omitWest: true);   // west opening shared with intro room
 
         CreateGravityCube(room, new Vector3(2f, 0.5f, -4f));
 
-        // Walk-through gravity volumes
-        CreateGravityVolume(room, "GravVol_Up",    new Vector3(-7f, wallHeight * 0.5f, -6f),
-            new Vector3(3f, wallHeight, 3f), Vector3.up);
-        CreateGravityVolume(room, "GravVol_Down",  new Vector3(4f,  wallHeight * 0.5f,  4f),
-            new Vector3(3f, wallHeight, 3f), Vector3.down);
-        CreateGravityVolume(room, "GravVol_Right", new Vector3(-9f, wallHeight * 0.5f,  3f),
-            new Vector3(3f, wallHeight, 3f), Vector3.right);
+        CreateGravityVolume(room, "GravVol_Up",    new Vector3(-7f, 0f, -6f), Vector3.up);
+        CreateGravityVolume(room, "GravVol_Down",  new Vector3(4f,  0f,  4f), Vector3.down);
+        CreateGravityVolume(room, "GravVol_Right", new Vector3(-9f, 0f,  3f), Vector3.right);
 
-        // Platforms reachable after gravity flips
-        CreatePlatform(room, new Vector3(4f,   wallHeight - 0.4f,  4f), new Vector3(4f, 0.3f, 4f), "CeilingPlatform");
-        CreatePlatform(room, new Vector3(-6f,  1.1f,  7f),              new Vector3(4f, 0.3f, 4f), "MidPlatform_A");
-        CreatePlatform(room, new Vector3(5f,   2.5f, -7f),              new Vector3(3f, 0.3f, 3f), "MidPlatform_B");
-        CreatePlatform(room, new Vector3(-9f,  1.0f, -3f),              new Vector3(3f, 0.3f, 5f), "LandingPlatform");
+        CreatePlatform(room, new Vector3(4f,  wallHeight - 0.4f,  4f), new Vector3(4f, 0.3f, 4f), "CeilingPlatform");
+        CreatePlatform(room, new Vector3(-6f, 1.1f,  7f),              new Vector3(4f, 0.3f, 4f), "MidPlatform_A");
+        CreatePlatform(room, new Vector3(5f,  2.5f, -7f),              new Vector3(3f, 0.3f, 3f), "MidPlatform_B");
+        CreatePlatform(room, new Vector3(-9f, 1.0f, -3f),              new Vector3(3f, 0.3f, 5f), "LandingPlatform");
 
-        // Second torch
         CreateTorchStation(room, new Vector3(-9f, 0.45f, 0f), "PuzzleTorch", lit: false);
 
-        // Locked exit door
         var exitDoor = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f),
             Quaternion.Euler(0f, 90f, 0f), "ExitDoor");
 
-        // Torch switch near exit door — bring lit torch to open
         CreateDoorSwitch(room, new Vector3(8f, 1.1f, -2f), exitDoor,
-            "Light the Way", "Bring a lit torch to the glowing switch near the east wall.");
+            "Light the Way", "Carry a lit torch to the switch near the east wall to open the exit.");
 
         CreateExitTrigger(room, new Vector3(W * 0.5f + 1f, 1f, 0f));
     }
@@ -267,21 +250,24 @@ public class LevelBuilder : MonoBehaviour
         gp.SetDirection(gravityDir);
     }
 
-    // Walk-through gravity volume: visible colored column with a trigger the player walks into.
-    private void CreateGravityVolume(Transform parent, string volName, Vector3 pos,
-        Vector3 size, Vector3 gravityDir)
+    // Floor-plate gravity marker: a flat coloured tile on the ground plus a tall invisible trigger above it.
+    private void CreateGravityVolume(Transform parent, string volName, Vector3 floorPos, Vector3 gravityDir)
     {
-        // Visible marker (semi-transparent blue box)
-        var visual = CreateBox(parent, volName + "_Visual", pos, size * 0.9f, panelColor);
+        const float tileSize = 3f;
 
-        // Invisible trigger volume (slightly larger so you don't have to be pixel-perfect)
+        // Flat visible tile sitting on the floor
+        CreateBox(parent, volName + "_Tile",
+            floorPos + new Vector3(0f, 0.05f, 0f),
+            new Vector3(tileSize, 0.1f, tileSize), panelColor);
+
+        // Tall invisible trigger the player walks through above the tile
         var trigger = new GameObject(volName + "_Trigger");
         trigger.transform.SetParent(parent, false);
-        trigger.transform.localPosition = pos;
+        trigger.transform.localPosition = floorPos + new Vector3(0f, wallHeight * 0.5f, 0f);
 
-        var col       = trigger.AddComponent<BoxCollider>();
+        var col   = trigger.AddComponent<BoxCollider>();
         col.isTrigger = true;
-        col.size      = size;
+        col.size  = new Vector3(tileSize, wallHeight, tileSize);
 
         var gp = trigger.AddComponent<GravityPanel>();
         gp.SetDirection(gravityDir);
@@ -394,17 +380,22 @@ public class LevelBuilder : MonoBehaviour
 
     // ── HUD Builder ───────────────────────────────────────────────────────────
 
-    private static Font _hudFont;
-    private static Font HudFont
+    // No static cache — avoids stale destroyed-font references across Play-mode runs.
+    private static Font LoadHudFont()
     {
-        get
-        {
-            if (_hudFont != null) return _hudFont;
-            _hudFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (_hudFont == null) _hudFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            if (_hudFont == null) _hudFont = Font.CreateDynamicFontFromOSFont("Arial", 14);
-            return _hudFont;
-        }
+        Font f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (f != null) return f;
+        f = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        if (f != null) return f;
+        // Fall back to first available OS font (always non-null on Windows)
+        string[] names = Font.GetOSInstalledFontNames();
+        foreach (string n in new[] { "Segoe UI", "Arial", "Tahoma", "Verdana" })
+            foreach (string installed in names)
+                if (installed.Equals(n, System.StringComparison.OrdinalIgnoreCase))
+                    return Font.CreateDynamicFontFromOSFont(installed, 16);
+        if (names != null && names.Length > 0)
+            return Font.CreateDynamicFontFromOSFont(names[0], 16);
+        return null;
     }
 
     private void BuildHUD()
@@ -479,7 +470,7 @@ public class LevelBuilder : MonoBehaviour
         t.fontSize           = fontSize;
         t.alignment          = TextAnchor.UpperLeft;
         t.color              = color;
-        t.font               = HudFont;
+        t.font               = LoadHudFont();
         t.horizontalOverflow = HorizontalWrapMode.Overflow;
         t.verticalOverflow   = VerticalWrapMode.Overflow;
         t.raycastTarget      = false;
@@ -572,7 +563,7 @@ public class LevelBuilder : MonoBehaviour
         t.fontSize           = fontSize;
         t.alignment          = TextAnchor.MiddleCenter;
         t.color              = color;
-        t.font               = HudFont;
+        t.font               = LoadHudFont();
         t.horizontalOverflow = HorizontalWrapMode.Overflow;
         t.verticalOverflow   = VerticalWrapMode.Overflow;
         t.raycastTarget      = false;

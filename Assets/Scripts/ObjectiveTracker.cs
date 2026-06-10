@@ -76,6 +76,8 @@ public class ObjectiveTracker : MonoBehaviour
     public int CompletedCount => _completedCount;
     public int RequiredToWin  => requiredToWin;
 
+    public void SetRequiredToWin(int n) => requiredToWin = n;
+
     // -- Private --------------------------------------------------------------
 
     private void RefreshUI()
