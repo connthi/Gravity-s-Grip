@@ -2,488 +2,355 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// FireSimulation — attach to any 3D GameObject.
-/// Creates a particle-based fire effect with dynamic flickering light.
-/// No external assets required; everything is generated at runtime.
+/// Runtime particle-based fire effect with flickering light.
+/// Call ResumeFire() / PauseFire() / Extinguish() to control it.
+/// TorchPickup owns when to call these — FireSimulation just renders.
 /// </summary>
 [AddComponentMenu("Effects/Fire Simulation")]
 public class FireSimulation : MonoBehaviour
 {
-    // ─────────────────────────────────────────────
-    //  Inspector Settings
-    // ─────────────────────────────────────────────
+    // ── Inspector ─────────────────────────────────────────────────────────────
 
-    [Header("Particle Settings")]
-    [Tooltip("Max number of fire particles alive at once.")]
-    public int maxParticles = 300;
+    [Header("Fire Particles")]
+    [SerializeField] private int   maxParticles    = 300;
+    [SerializeField] private float emissionRate    = 80f;
+    [SerializeField] private float particleLife    = 1.2f;
+    [SerializeField] private float riseSpeed       = 2.5f;
+    [SerializeField] private float spreadRadius    = 0.4f;
+    [SerializeField] private float startSize       = 0.35f;
+    [SerializeField] private float endSize         = 0.05f;
 
-    [Tooltip("How many particles are emitted per second.")]
-    public float emissionRate = 80f;
+    [Header("Colors")]
+    [SerializeField] private Color coreColor = new Color(1f, 1f, 0.6f, 1f);
+    [SerializeField] private Color midColor  = new Color(1f, 0.45f, 0.05f, 0.9f);
+    [SerializeField] private Color tipColor  = new Color(0.6f, 0.05f, 0f, 0f);
 
-    [Tooltip("Base lifetime of each particle (seconds).")]
-    public float particleLifetime = 1.2f;
+    [Header("Light")]
+    [SerializeField] private bool  enableLight    = true;
+    [SerializeField] private float lightIntensity = 2.5f;
+    [SerializeField] private float flickerAmt     = 0.8f;
+    [SerializeField] private float flickerSpeed   = 8f;
+    [SerializeField] private float lightRange     = 6f;
+    [SerializeField] private Color lightColor     = new Color(1f, 0.5f, 0.15f);
 
-    [Tooltip("How fast particles rise.")]
-    public float riseSpeed = 2.5f;
+    [Header("Smoke")]
+    [SerializeField] private bool  enableSmoke       = true;
+    [SerializeField] private float smokeRate         = 12f;
+    [SerializeField] private float smokeSpawnHeight  = 0.8f;
+    [SerializeField] private float smokeMaxSize      = 1.2f;
+    [SerializeField] private Color smokeColor        = new Color(0.72f, 0.68f, 0.63f, 0.28f);
 
-    [Tooltip("Random spread radius around the object's origin.")]
-    public float spreadRadius = 0.4f;
+    [Header("Embers")]
+    [SerializeField] private bool  enableEmbers  = true;
+    [SerializeField] private float emberRate     = 10f;
 
-    [Tooltip("Start size of particles.")]
-    public float startSize = 0.35f;
+    // ── Private ───────────────────────────────────────────────────────────────
 
-    [Tooltip("End size of particles (shrinks toward top of flame).")]
-    public float endSize = 0.05f;
+    private ParticleSystem _firePS;
+    private ParticleSystem _smokePS;
+    private ParticleSystem _emberPS;
+    private Light          _light;
+    private float          _flickerOffset;
 
-    [Header("Color Gradient")]
-    [Tooltip("Inner core color (hottest).")]
-    public Color coreColor = new Color(1f, 1f, 0.6f, 1f);
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
-    [Tooltip("Mid-flame color.")]
-    public Color midColor = new Color(1f, 0.45f, 0.05f, 0.9f);
-
-    [Tooltip("Outer tip color (coolest).")]
-    public Color tipColor = new Color(0.6f, 0.05f, 0f, 0f);
-
-    [Header("Light Settings")]
-    [Tooltip("Enable a dynamic point light that flickers.")]
-    public bool enableLight = true;
-
-    [Tooltip("Base intensity of the fire light.")]
-    public float lightIntensity = 2.5f;
-
-    [Tooltip("How much the intensity flickers (+/- this value).")]
-    public float flickerAmount = 0.8f;
-
-    [Tooltip("Speed of the flicker noise.")]
-    public float flickerSpeed = 8f;
-
-    [Tooltip("Light range in world units.")]
-    public float lightRange = 6f;
-
-    [Tooltip("Color of the light cast onto surroundings.")]
-    public Color lightColor = new Color(1f, 0.5f, 0.15f);
-
-    [Header("Smoke Settings")]
-    [Tooltip("Enable rising smoke above the flame.")]
-    public bool enableSmoke = true;
-
-    [Tooltip("Emission rate for smoke puffs.")]
-    public float smokeEmissionRate = 12f;
-
-    [Tooltip("How high above the object smoke spawns.")]
-    public float smokeSpawnHeight = 0.8f;
-
-    [Tooltip("How large smoke puffs grow.")]
-    public float smokeMaxSize = 1.2f;
-
-    [Tooltip("Smoke color (typically dark grey).")]
-    public Color smokeColor = new Color(0.72f, 0.68f, 0.63f, 0.28f);
-
-    [Header("Ember Settings")]
-    [Tooltip("Enable small rising ember particles.")]
-    public bool enableEmbers = true;
-
-    [Tooltip("Emission rate for embers.")]
-    public float emberEmissionRate = 10f;
-
-    // ─────────────────────────────────────────────
-    //  Private State
-    // ─────────────────────────────────────────────
-
-    private ParticleSystem firePS;
-    private ParticleSystem smokePS;
-    private ParticleSystem emberPS;
-    private Light fireLight;
-    private float flickerOffset;
-
-    // ─────────────────────────────────────────────
-    //  Lifecycle
-    // ─────────────────────────────────────────────
-
-    void Start()
+    private void Start()
     {
-        flickerOffset = Random.Range(0f, 100f);
-
-        BuildFireParticles();
-
-        if (enableSmoke)
-            BuildSmokeParticles();
-
-        if (enableEmbers)
-            BuildEmberParticles();
-
-        if (enableLight)
-            BuildLight();
+        _flickerOffset = Random.Range(0f, 100f);
+        _firePS  = BuildFireParticles();
+        if (enableSmoke)  _smokePS = BuildSmokeParticles();
+        if (enableEmbers) _emberPS = BuildEmberParticles();
+        if (enableLight)  _light   = BuildLight();
     }
 
-    void Update()
+    private void Update()
     {
-        if (enableLight && fireLight != null)
-            UpdateFlicker();
+        if (enableLight && _light != null) FlickerLight();
     }
 
-    // ─────────────────────────────────────────────
-    //  Fire Particle System
-    // ─────────────────────────────────────────────
+    // ── Public API ────────────────────────────────────────────────────────────
 
-    void BuildFireParticles()
+    public void ResumeFire()
     {
-        GameObject fireGO = new GameObject("Fire_Particles");
-        fireGO.transform.SetParent(transform, false);
+        _firePS?.Play();
+        _smokePS?.Play();
+        _emberPS?.Play();
+        if (_light) _light.enabled = true;
+    }
 
-        firePS = fireGO.AddComponent<ParticleSystem>();
-        fireGO.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+    public void PauseFire()
+    {
+        _firePS?.Pause();
+        _smokePS?.Pause();
+        _emberPS?.Pause();
+        if (_light) _light.enabled = false;
+    }
 
-        var main = firePS.main;
-        main.loop = true;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(particleLifetime * 0.7f, particleLifetime);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(riseSpeed * 0.8f, riseSpeed * 1.2f);
-        main.startSize = new ParticleSystem.MinMaxCurve(startSize * 0.6f, startSize * 1.2f);
-        main.startColor = coreColor;
-        main.maxParticles = maxParticles;
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.gravityModifier = -0.3f;
+    public void Extinguish(float duration = 2f) => StartCoroutine(ExtinguishRoutine(duration));
 
-        var emission = firePS.emission;
-        emission.rateOverTime = emissionRate;
+    // ── Light ─────────────────────────────────────────────────────────────────
 
-        var shape = firePS.shape;
-        shape.enabled = true;
-        shape.shapeType = ParticleSystemShapeType.Cone;
-        shape.angle = 12f;
-        shape.radius = spreadRadius;
+    private void FlickerLight()
+    {
+        float t  = Time.time * flickerSpeed + _flickerOffset;
+        float n  = (Mathf.PerlinNoise(t, 0f)
+                  + Mathf.PerlinNoise(t * 2.3f, 10f) * 0.5f
+                  + Mathf.PerlinNoise(t * 5.1f, 20f) * 0.25f) / 1.75f;
 
-        var col = firePS.colorOverLifetime;
+        _light.intensity = lightIntensity + (n - 0.5f) * 2f * flickerAmt;
+        _light.range     = lightRange     + (n - 0.5f) * 0.5f;
+        _light.color     = Color.Lerp(new Color(1f, 0.35f, 0.1f), new Color(1f, 0.75f, 0.3f), n);
+    }
+
+    private Light BuildLight()
+    {
+        var go = new GameObject("Fire_Light");
+        go.transform.SetParent(transform, false);
+        go.transform.localPosition = new Vector3(0f, 0.5f, 0f);
+
+        var l       = go.AddComponent<Light>();
+        l.type      = LightType.Point;
+        l.color     = lightColor;
+        l.intensity = lightIntensity;
+        l.range     = lightRange;
+        l.shadows   = LightShadows.Soft;
+        return l;
+    }
+
+    // ── Particle Builders ─────────────────────────────────────────────────────
+
+    private ParticleSystem BuildFireParticles()
+    {
+        var go  = new GameObject("Fire_Particles");
+        go.transform.SetParent(transform, false);
+        go.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+
+        var ps   = go.AddComponent<ParticleSystem>();
+        var main = ps.main;
+        main.loop              = true;
+        main.startLifetime     = new ParticleSystem.MinMaxCurve(particleLife * 0.7f, particleLife);
+        main.startSpeed        = new ParticleSystem.MinMaxCurve(riseSpeed * 0.8f, riseSpeed * 1.2f);
+        main.startSize         = new ParticleSystem.MinMaxCurve(startSize * 0.6f, startSize * 1.2f);
+        main.startColor        = coreColor;
+        main.maxParticles      = maxParticles;
+        main.simulationSpace   = ParticleSystemSimulationSpace.World;
+        main.gravityModifier   = -0.3f;
+
+        var em = ps.emission; em.rateOverTime = emissionRate;
+
+        var sh = ps.shape;
+        sh.enabled   = true;
+        sh.shapeType = ParticleSystemShapeType.Cone;
+        sh.angle     = 12f;
+        sh.radius    = spreadRadius;
+
+        var col  = ps.colorOverLifetime;
         col.enabled = true;
+        col.color   = new ParticleSystem.MinMaxGradient(MakeFireGradient());
 
-        Gradient grad = new Gradient();
-        grad.SetKeys(
-            new GradientColorKey[]
-            {
-                new GradientColorKey(coreColor, 0.0f),
-                new GradientColorKey(midColor, 0.4f),
-                new GradientColorKey(tipColor, 1.0f)
-            },
-            new GradientAlphaKey[]
-            {
-                new GradientAlphaKey(1.0f, 0.0f),
-                new GradientAlphaKey(0.9f, 0.3f),
-                new GradientAlphaKey(0.0f, 1.0f)
-            }
-        );
-        col.color = new ParticleSystem.MinMaxGradient(grad);
+        var sz   = ps.sizeOverLifetime;
+        sz.enabled = true;
+        sz.size    = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
+            new Keyframe(0f, 1f), new Keyframe(0.4f, 0.8f), new Keyframe(1f, endSize / startSize)));
 
-        var sizeOL = firePS.sizeOverLifetime;
-        sizeOL.enabled = true;
-        AnimationCurve sizeCurve = new AnimationCurve(
-            new Keyframe(0f, 1f),
-            new Keyframe(0.4f, 0.8f),
-            new Keyframe(1f, endSize / startSize)
-        );
-        sizeOL.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
-
-        var noise = firePS.noise;
-        noise.enabled = true;
-        noise.strength = 0.3f;
-        noise.frequency = 1.2f;
+        var noise = ps.noise;
+        noise.enabled     = true;
+        noise.strength    = 0.3f;
+        noise.frequency   = 1.2f;
         noise.scrollSpeed = 0.5f;
-        noise.quality = ParticleSystemNoiseQuality.Medium;
+        noise.quality     = ParticleSystemNoiseQuality.Medium;
 
-        var renderer = firePS.GetComponent<ParticleSystemRenderer>();
-        renderer.renderMode = ParticleSystemRenderMode.Billboard;
+        var rend = ps.GetComponent<ParticleSystemRenderer>();
+        rend.renderMode  = ParticleSystemRenderMode.Billboard;
+        rend.material    = MakeAdditiveMaterial();
+        rend.sortingOrder = 1;
 
-        Material mat = new Material(Shader.Find("Particles/Standard Unlit"));
-        if (mat.shader == null || mat.shader.name == "Hidden/InternalErrorShader")
-        {
-            mat = new Material(Shader.Find("Legacy Shaders/Particles/Additive"));
-        }
-        mat.SetInt("_BlendOp", (int)UnityEngine.Rendering.BlendOp.Add);
-        renderer.material = mat;
-        renderer.sortingOrder = 1;
-
-        firePS.Play();
+        ps.Play();
+        return ps;
     }
 
-    // ─────────────────────────────────────────────
-    //  Smoke Particle System
-    // ─────────────────────────────────────────────
-
-    void BuildSmokeParticles()
+    private ParticleSystem BuildSmokeParticles()
     {
-        GameObject smokeGO = new GameObject("Smoke_Particles");
-        smokeGO.transform.SetParent(transform, false);
-        smokeGO.transform.localPosition = new Vector3(0f, smokeSpawnHeight, 0f);
-        smokeGO.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+        var go = new GameObject("Smoke_Particles");
+        go.transform.SetParent(transform, false);
+        go.transform.localPosition = new Vector3(0f, smokeSpawnHeight, 0f);
+        go.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
 
-        smokePS = smokeGO.AddComponent<ParticleSystem>();
-
-        var main = smokePS.main;
-        main.loop = true;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(2.5f, 4.5f);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(0.4f, 1.0f);
-        main.startSize = new ParticleSystem.MinMaxCurve(smokeMaxSize * 0.25f, smokeMaxSize * 0.55f);
-        main.startColor = smokeColor;
-        main.maxParticles = 60;
+        var ps   = go.AddComponent<ParticleSystem>();
+        var main = ps.main;
+        main.loop            = true;
+        main.startLifetime   = new ParticleSystem.MinMaxCurve(2.5f, 4.5f);
+        main.startSpeed      = new ParticleSystem.MinMaxCurve(0.4f, 1.0f);
+        main.startSize       = new ParticleSystem.MinMaxCurve(smokeMaxSize * 0.25f, smokeMaxSize * 0.55f);
+        main.startColor      = smokeColor;
+        main.maxParticles    = 60;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.gravityModifier = -0.05f;
 
-        main.startRotation3D = true;
-        main.startRotationX = new ParticleSystem.MinMaxCurve(0f, 360f * Mathf.Deg2Rad);
-        main.startRotationY = new ParticleSystem.MinMaxCurve(0f, 360f * Mathf.Deg2Rad);
-        main.startRotationZ = new ParticleSystem.MinMaxCurve(0f, 360f * Mathf.Deg2Rad);
+        var em = ps.emission; em.rateOverTime = smokeRate;
 
-        var emission = smokePS.emission;
-        emission.rateOverTime = smokeEmissionRate;
+        var sh = ps.shape;
+        sh.enabled   = true;
+        sh.shapeType = ParticleSystemShapeType.Cone;
+        sh.angle     = 20f;
+        sh.radius    = spreadRadius * 0.6f;
 
-        var shape = smokePS.shape;
-        shape.enabled = true;
-        shape.shapeType = ParticleSystemShapeType.Cone;
-        shape.angle = 20f;
-        shape.radius = spreadRadius * 0.6f;
-
-        Color smokeWarm = new Color(
-            Mathf.Clamp01(smokeColor.r * 1.2f),
-            Mathf.Clamp01(smokeColor.g * 1.05f),
-            Mathf.Clamp01(smokeColor.b * 0.75f)
-        );
-        Color smokeLight = new Color(
-            Mathf.Lerp(smokeColor.r, 1f, 0.45f),
-            Mathf.Lerp(smokeColor.g, 1f, 0.45f),
-            Mathf.Lerp(smokeColor.b, 1f, 0.45f)
-        );
-        float peakA = Mathf.Clamp(smokeColor.a, 0.01f, 1f);
-
-        var col = smokePS.colorOverLifetime;
+        var col  = ps.colorOverLifetime;
         col.enabled = true;
-        Gradient sGrad = new Gradient();
-        sGrad.SetKeys(
-            new GradientColorKey[]
-            {
-                new GradientColorKey(smokeWarm, 0.00f),
-                new GradientColorKey(smokeColor, 0.35f),
-                new GradientColorKey(smokeLight, 1.00f)
-            },
-            new GradientAlphaKey[]
-            {
-                new GradientAlphaKey(0f, 0.00f),
-                new GradientAlphaKey(peakA, 0.12f),
-                new GradientAlphaKey(peakA * 0.6f, 0.55f),
-                new GradientAlphaKey(0f, 1.00f)
-            }
-        );
-        col.color = new ParticleSystem.MinMaxGradient(sGrad);
+        col.color   = new ParticleSystem.MinMaxGradient(MakeSmokeGradient());
 
-        var sizeOL = smokePS.sizeOverLifetime;
-        sizeOL.enabled = true;
-        sizeOL.size = new ParticleSystem.MinMaxCurve(smokeMaxSize,
-            new AnimationCurve(
-                new Keyframe(0f, 0.15f),
-                new Keyframe(0.3f, 0.65f),
-                new Keyframe(1f, 1.00f)
-            ));
+        var sz = ps.sizeOverLifetime;
+        sz.enabled = true;
+        sz.size    = new ParticleSystem.MinMaxCurve(smokeMaxSize, new AnimationCurve(
+            new Keyframe(0f, 0.15f), new Keyframe(0.3f, 0.65f), new Keyframe(1f, 1f)));
 
-        var rotOL = smokePS.rotationOverLifetime;
-        rotOL.enabled = true;
-        rotOL.separateAxes = true;
-        rotOL.x = new ParticleSystem.MinMaxCurve(-25f * Mathf.Deg2Rad, 25f * Mathf.Deg2Rad);
-        rotOL.y = new ParticleSystem.MinMaxCurve(-20f * Mathf.Deg2Rad, 20f * Mathf.Deg2Rad);
-        rotOL.z = new ParticleSystem.MinMaxCurve(-15f * Mathf.Deg2Rad, 15f * Mathf.Deg2Rad);
-
-        var noise = smokePS.noise;
-        noise.enabled = true;
-        noise.strength = 0.5f;
-        noise.frequency = 0.4f;
+        var noise = ps.noise;
+        noise.enabled     = true;
+        noise.strength    = 0.5f;
+        noise.frequency   = 0.4f;
         noise.scrollSpeed = 0.2f;
-        noise.quality = ParticleSystemNoiseQuality.Medium;
 
-        var rend = smokePS.GetComponent<ParticleSystemRenderer>();
-        rend.renderMode = ParticleSystemRenderMode.Mesh;
-        rend.mesh = Resources.GetBuiltinResource(typeof(Mesh), "Cube.fbx") as Mesh;
+        var rend = ps.GetComponent<ParticleSystemRenderer>();
+        rend.renderMode  = ParticleSystemRenderMode.Billboard;
+        rend.material    = MakeAlphaMaterial();
         rend.sortingOrder = 0;
 
-        Material sMat = new Material(Shader.Find("Sprites/Default"));
-        sMat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        sMat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-        sMat.renderQueue = 3000;
-        rend.material = sMat;
-
-        smokePS.Play();
+        ps.Play();
+        return ps;
     }
 
-    // ─────────────────────────────────────────────
-    //  Ember Particle System
-    // ─────────────────────────────────────────────
-
-    void BuildEmberParticles()
+    private ParticleSystem BuildEmberParticles()
     {
-        GameObject emberGO = new GameObject("Ember_Particles");
-        emberGO.transform.SetParent(transform, false);
+        var go = new GameObject("Ember_Particles");
+        go.transform.SetParent(transform, false);
+        go.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
 
-        emberPS = emberGO.AddComponent<ParticleSystem>();
-        emberGO.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
-
-        var main = emberPS.main;
-        main.loop = true;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(1.5f, 3.5f);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(1.5f, 3.5f);
-        main.startSize = new ParticleSystem.MinMaxCurve(0.03f, 0.08f);
-        main.startColor = new Color(1f, 0.6f, 0.1f, 1f);
-        main.maxParticles = 80;
+        var ps   = go.AddComponent<ParticleSystem>();
+        var main = ps.main;
+        main.loop            = true;
+        main.startLifetime   = new ParticleSystem.MinMaxCurve(1.5f, 3.5f);
+        main.startSpeed      = new ParticleSystem.MinMaxCurve(1.5f, 3.5f);
+        main.startSize       = new ParticleSystem.MinMaxCurve(0.03f, 0.08f);
+        main.startColor      = new Color(1f, 0.6f, 0.1f, 1f);
+        main.maxParticles    = 80;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.gravityModifier = -0.1f;
 
-        var emission = emberPS.emission;
-        emission.rateOverTime = emberEmissionRate;
+        var em = ps.emission; em.rateOverTime = emberRate;
 
-        var shape = emberPS.shape;
-        shape.enabled = true;
-        shape.shapeType = ParticleSystemShapeType.Circle;
-        shape.radius = spreadRadius * 0.5f;
+        var sh = ps.shape;
+        sh.enabled   = true;
+        sh.shapeType = ParticleSystemShapeType.Circle;
+        sh.radius    = spreadRadius * 0.5f;
 
-        var col = emberPS.colorOverLifetime;
+        var col = ps.colorOverLifetime;
         col.enabled = true;
-        Gradient eGrad = new Gradient();
-        eGrad.SetKeys(
-            new GradientColorKey[]
-            {
-                new GradientColorKey(new Color(1f, 0.9f, 0.4f), 0f),
-                new GradientColorKey(new Color(0.8f, 0.1f, 0f), 0.5f),
-                new GradientColorKey(new Color(0.1f, 0.1f, 0.1f), 1f)
-            },
-            new GradientAlphaKey[]
-            {
-                new GradientAlphaKey(1f, 0f),
-                new GradientAlphaKey(0.8f, 0.5f),
-                new GradientAlphaKey(0f, 1f)
-            }
-        );
-        col.color = new ParticleSystem.MinMaxGradient(eGrad);
+        col.color   = new ParticleSystem.MinMaxGradient(MakeEmberGradient());
 
-        var noise = emberPS.noise;
-        noise.enabled = true;
-        noise.strength = 0.8f;
-        noise.frequency = 0.8f;
+        var noise = ps.noise;
+        noise.enabled     = true;
+        noise.strength    = 0.8f;
+        noise.frequency   = 0.8f;
         noise.scrollSpeed = 1f;
 
-        var renderer = emberPS.GetComponent<ParticleSystemRenderer>();
-        renderer.renderMode = ParticleSystemRenderMode.Billboard;
+        var rend = ps.GetComponent<ParticleSystemRenderer>();
+        rend.renderMode = ParticleSystemRenderMode.Billboard;
+        rend.material   = MakeAdditiveMaterial();
 
-        Material eMat = new Material(Shader.Find("Particles/Standard Unlit"));
-        if (eMat.shader == null || eMat.shader.name == "Hidden/InternalErrorShader")
-        {
-            eMat = new Material(Shader.Find("Legacy Shaders/Particles/Additive"));
-        }
-        renderer.material = eMat;
-
-        emberPS.Play();
+        ps.Play();
+        return ps;
     }
 
-    // ─────────────────────────────────────────────
-    //  Dynamic Light
-    // ─────────────────────────────────────────────
+    // ── Gradient Helpers ──────────────────────────────────────────────────────
 
-    void BuildLight()
+    private Gradient MakeFireGradient()
     {
-        GameObject lightGO = new GameObject("Fire_Light");
-        lightGO.transform.SetParent(transform, false);
-        lightGO.transform.localPosition = new Vector3(0f, 0.5f, 0f);
-
-        fireLight = lightGO.AddComponent<Light>();
-        fireLight.type = LightType.Point;
-        fireLight.color = lightColor;
-        fireLight.intensity = lightIntensity;
-        fireLight.range = lightRange;
-        fireLight.shadows = LightShadows.Soft;
+        var g = new Gradient();
+        g.SetKeys(
+            new[] { new GradientColorKey(coreColor, 0f),
+                    new GradientColorKey(midColor,  0.4f),
+                    new GradientColorKey(tipColor,  1f) },
+            new[] { new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(0.9f, 0.3f),
+                    new GradientAlphaKey(0f, 1f) });
+        return g;
     }
 
-    void UpdateFlicker()
+    private Gradient MakeSmokeGradient()
     {
-        float t = Time.time * flickerSpeed + flickerOffset;
-        float n1 = Mathf.PerlinNoise(t, 0f);
-        float n2 = Mathf.PerlinNoise(t * 2.3f, 10f) * 0.5f;
-        float n3 = Mathf.PerlinNoise(t * 5.1f, 20f) * 0.25f;
-        float combined = (n1 + n2 + n3) / 1.75f;
-
-        fireLight.intensity = lightIntensity + (combined - 0.5f) * 2f * flickerAmount;
-        fireLight.range = lightRange + (combined - 0.5f) * 0.5f;
-        fireLight.color = Color.Lerp(
-            new Color(1f, 0.35f, 0.1f),
-            new Color(1f, 0.75f, 0.3f),
-            combined
-        );
+        float peak = Mathf.Clamp(smokeColor.a, 0.01f, 1f);
+        var g = new Gradient();
+        g.SetKeys(
+            new[] { new GradientColorKey(smokeColor, 0f),
+                    new GradientColorKey(smokeColor, 0.35f),
+                    new GradientColorKey(Color.white, 1f) },
+            new[] { new GradientAlphaKey(0f,        0f),
+                    new GradientAlphaKey(peak,       0.12f),
+                    new GradientAlphaKey(peak * 0.6f, 0.55f),
+                    new GradientAlphaKey(0f,         1f) });
+        return g;
     }
 
-    // ─────────────────────────────────────────────
-    //  Public API
-    // ─────────────────────────────────────────────
-
-    /// <summary>Pause all fire effects.</summary>
-    public void PauseFire()
+    private static Gradient MakeEmberGradient()
     {
-        if (firePS != null) firePS.Pause();
-        if (smokePS != null) smokePS.Pause();
-        if (emberPS != null) emberPS.Pause();
-        if (fireLight != null) fireLight.enabled = false;
+        var g = new Gradient();
+        g.SetKeys(
+            new[] { new GradientColorKey(new Color(1f, 0.9f, 0.4f), 0f),
+                    new GradientColorKey(new Color(0.8f, 0.1f, 0f),  0.5f),
+                    new GradientColorKey(new Color(0.1f, 0.1f, 0.1f), 1f) },
+            new[] { new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(0.8f, 0.5f),
+                    new GradientAlphaKey(0f, 1f) });
+        return g;
     }
 
-    /// <summary>Resume all fire effects.</summary>
-    public void ResumeFire()
+    // ── Material Helpers ──────────────────────────────────────────────────────
+
+    private static Material MakeAdditiveMaterial()
     {
-        if (firePS != null) firePS.Play();
-        if (smokePS != null) smokePS.Play();
-        if (emberPS != null) emberPS.Play();
-        if (fireLight != null) fireLight.enabled = true;
+        var mat = new Material(Shader.Find("Particles/Standard Unlit")
+                   ?? Shader.Find("Legacy Shaders/Particles/Additive"));
+        return mat;
     }
 
-    /// <summary>Gradually extinguish the fire over a given duration.</summary>
-    public void Extinguish(float duration = 2f)
+    private static Material MakeAlphaMaterial()
     {
-        StartCoroutine(ExtinguishRoutine(duration));
+        var mat = new Material(Shader.Find("Sprites/Default"));
+        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        mat.renderQueue = 3000;
+        return mat;
     }
+
+    // ── Extinguish Coroutine ──────────────────────────────────────────────────
 
     private IEnumerator ExtinguishRoutine(float duration)
     {
-        float elapsed = 0f;
-        float startRate = emissionRate;
+        float elapsed        = 0f;
         float startIntensity = lightIntensity;
 
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
-            float t = elapsed / duration;
+            float t  = elapsed / duration;
 
-            var emission = firePS.emission;
-            var rate = emission.rateOverTime;
-            rate.constant = Mathf.Lerp(startRate, 0f, t);
-            emission.rateOverTime = rate;
+            SetEmissionRate(_firePS,  Mathf.Lerp(emissionRate, 0f, t));
+            SetEmissionRate(_emberPS, Mathf.Lerp(emberRate,    0f, t));
+            SetEmissionRate(_smokePS, Mathf.Lerp(smokeRate * 1.4f, 0f, Mathf.Clamp01(t * 1.5f - 0.3f)));
 
-            if (enableEmbers && emberPS != null)
-            {
-                var eEmission = emberPS.emission;
-                var eRate = eEmission.rateOverTime;
-                eRate.constant = Mathf.Lerp(emberEmissionRate, 0f, t);
-                eEmission.rateOverTime = eRate;
-            }
-
-            if (enableSmoke && smokePS != null)
-            {
-                float smokeT = Mathf.Clamp01(t * 1.5f - 0.3f);
-                var sEmission = smokePS.emission;
-                var sRate = sEmission.rateOverTime;
-                sRate.constant = Mathf.Lerp(smokeEmissionRate * 1.4f, 0f, smokeT);
-                sEmission.rateOverTime = sRate;
-            }
-
-            if (enableLight && fireLight)
-                fireLight.intensity = Mathf.Lerp(startIntensity, 0f, t);
-
+            if (_light) _light.intensity = Mathf.Lerp(startIntensity, 0f, t);
             yield return null;
         }
 
-        if (firePS != null) firePS.Stop();
-        if (smokePS != null) smokePS.Stop();
-        if (emberPS != null) emberPS.Stop();
-        if (fireLight != null) fireLight.enabled = false;
+        PauseFire();
+    }
+
+    private static void SetEmissionRate(ParticleSystem ps, float rate)
+    {
+        if (ps == null) return;
+        var em = ps.emission;
+        var r  = em.rateOverTime;
+        r.constant     = rate;
+        em.rateOverTime = r;
     }
 }

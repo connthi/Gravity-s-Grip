@@ -1,81 +1,134 @@
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.SceneManagement;
 
+/// <summary>
+/// Owns all HUD and screen-overlay display.
+/// Subscribes to events from PlayerController and ObjectiveTracker
+/// instead of being polled every frame.
+/// Inject() is called by LevelBuilder to wire up runtime-built UI elements.
+/// </summary>
 public class UIManager : MonoBehaviour
 {
-    public Text objectiveTitleText;
-    public Text objectiveDescriptionText;
-    public Text progressText;
-    public Text torchStatusText;
-    public Text hintText;
-    public GameObject winPanel;
-    public GameObject hudPanel;
+    public static UIManager Instance { get; private set; }
 
-    public void SetObjective(PuzzleObjective objective)
+    // -- Inspector (set in Editor or via Inject()) ----------------------------
+
+    [SerializeField] private GameObject hudPanel;
+    [SerializeField] private Text objectiveTitleText;
+    [SerializeField] private Text objectiveDescText;
+    [SerializeField] private Text progressText;
+    [SerializeField] private Text torchStatusText;
+    [SerializeField] private Text hintText;
+    [SerializeField] private GameObject winPanel;
+    [SerializeField] private GameObject pausePanel;
+
+    // -- Lifecycle ------------------------------------------------------------
+
+    private void Awake()
     {
-        if (objectiveTitleText == null || objectiveDescriptionText == null)
-            return;
+        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+        Instance = this;
+    }
 
-        if (objective == null)
+    private void Start()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.OnStateChanged += OnGameStateChanged;
+
+        var tracker = ObjectiveTracker.Instance;
+        if (tracker != null)
         {
-            objectiveTitleText.text = "All puzzles complete";
-            objectiveDescriptionText.text = "Return to the exit or enjoy the win screen.";
-            SetHint("All puzzles complete. Find the exit or celebrate your victory.");
-            return;
+            tracker.OnProgressChanged   += (c, r) => SetProgress(c, r);
+            tracker.OnObjectiveComplete += o      => SetObjective(tracker.NextIncomplete());
+            SetProgress(tracker.CompletedCount, tracker.RequiredToWin);
+            SetObjective(tracker.NextIncomplete());
         }
 
-        objectiveTitleText.text = objective.title;
-        objectiveDescriptionText.text = objective.description;
-        SetHint(objective.description);
+        var player = FindAnyObjectByType<PlayerController>();
+        if (player != null)
+            player.OnTorchChanged += OnTorchChanged;
+
+        winPanel?.SetActive(false);
+        pausePanel?.SetActive(false);
+    }
+
+    private void OnDestroy()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.OnStateChanged -= OnGameStateChanged;
+    }
+
+    // -- Public API -----------------------------------------------------------
+
+    public void SetObjective(PuzzleObjective obj)
+    {
+        if (obj == null)
+        {
+            SetText(objectiveTitleText, "All objectives complete!");
+            SetText(objectiveDescText,  "Find the exit.");
+            return;
+        }
+        SetText(objectiveTitleText, obj.Title);
+        SetText(objectiveDescText,  obj.Description);
     }
 
     public void SetProgress(int completed, int required)
-    {
-        if (progressText != null)
-        {
-            progressText.text = string.Format("Puzzles: {0}/{1}", completed, required);
-        }
-    }
+        => SetText(progressText, $"Puzzles: {completed}/{required}");
 
-    public void SetTorchStatus(bool isLit, float fuelPercent)
-    {
-        if (torchStatusText == null)
-            return;
-
-        if (!isLit)
-        {
-            torchStatusText.text = "Torch: Out / Unlit";
-        }
-        else
-        {
-            torchStatusText.text = string.Format("Torch: Lit ({0}%)", Mathf.RoundToInt(fuelPercent * 100f));
-        }
-    }
-
-    public void SetHint(string hint)
-    {
-        if (hintText == null)
-            return;
-
-        hintText.text = hint;
-    }
+    public void ShowHint(string hint)
+        => SetText(hintText, hint);
 
     public void ShowWinScreen()
     {
-        if (winPanel != null)
-        {
-            winPanel.SetActive(true);
-        }
-
-        if (hudPanel != null)
-        {
-            hudPanel.SetActive(false);
-        }
+        hudPanel?.SetActive(false);
+        winPanel?.SetActive(true);
     }
 
-    public void RestartLevel()
+    public void ShowPauseScreen(bool show)
+        => pausePanel?.SetActive(show);
+
+    /// Called by LevelBuilder to wire up runtime-created UI elements.
+    public void Inject(
+        GameObject hud,
+        Text objTitle, Text objDesc,
+        Text progress, Text torchStatus, Text hint,
+        GameObject win)
     {
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        hudPanel          = hud;
+        objectiveTitleText = objTitle;
+        objectiveDescText  = objDesc;
+        progressText       = progress;
+        torchStatusText    = torchStatus;
+        hintText           = hint;
+        winPanel           = win;
+    }
+
+    // -- Event Handlers -------------------------------------------------------
+
+    private void OnGameStateChanged(GameManager.GameState state)
+    {
+        ShowPauseScreen(state == GameManager.GameState.Paused);
+        if (state == GameManager.GameState.Won) ShowWinScreen();
+    }
+
+    private void OnTorchChanged(TorchPickup torch)
+    {
+        if (torch == null) { SetText(torchStatusText, "Torch: none"); return; }
+
+        torch.OnLitChanged  += lit => UpdateTorchUI(lit, torch.FuelPercent);
+        torch.OnFuelChanged += pct => UpdateTorchUI(torch.IsLit, pct);
+        UpdateTorchUI(torch.IsLit, torch.FuelPercent);
+    }
+
+    // -- Helpers --------------------------------------------------------------
+
+    private void UpdateTorchUI(bool lit, float pct)
+        => SetText(torchStatusText, lit
+            ? $"Torch: Lit ({Mathf.RoundToInt(pct * 100f)}%)"
+            : "Torch: Unlit");
+
+    private static void SetText(Text t, string s)
+    {
+        if (t != null) t.text = s;
     }
 }

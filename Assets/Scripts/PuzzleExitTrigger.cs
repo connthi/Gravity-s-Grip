@@ -1,33 +1,32 @@
 using UnityEngine;
 
+/// <summary>
+/// Triggers the win condition when the player reaches the exit,
+/// provided enough objectives are complete.
+/// </summary>
+[RequireComponent(typeof(Collider))]
 public class PuzzleExitTrigger : MonoBehaviour
 {
-    public PuzzleManager manager;
-
-    private void Start()
+    private void Reset()
     {
-        if (manager == null)
-            manager = PuzzleManager.Instance;
+        GetComponent<Collider>().isTrigger = true;
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        if (manager == null)
-            return;
+        if (other.GetComponent<PlayerController>() == null) return;
 
-        PlayerController player = other.GetComponent<PlayerController>();
-        if (player == null)
-            return;
+        var tracker = ObjectiveTracker.Instance;
+        if (tracker == null) return;
 
-        if (manager.CountCompletedObjectives() >= manager.requiredPuzzlesToWin)
+        if (tracker.CompletedCount >= tracker.RequiredToWin)
         {
-            if (manager.uiManager != null)
-                manager.uiManager.ShowWinScreen();
+            GameManager.Instance?.TriggerWin();
         }
         else
         {
-            if (manager.uiManager != null)
-                manager.uiManager.SetHint("You need to complete more puzzles before exiting.");
+            int remaining = tracker.RequiredToWin - tracker.CompletedCount;
+            UIManager.Instance?.ShowHint($"Complete {remaining} more puzzle(s) before leaving.");
         }
     }
 }
