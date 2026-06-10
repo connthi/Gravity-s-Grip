@@ -25,12 +25,12 @@ public class PuzzleCompletionTrigger : MonoBehaviour
         if (requireTorch)
         {
             PlayerController player = other.GetComponent<PlayerController>();
-            if (player == null || !player.HasTorch())
+            if (player == null || !player.HasTorch)
                 return;
 
             if (requireLitTorch)
             {
-                TorchPickup carried = player.GetCarriedTorch();
+                TorchPickup carried = player.CarriedTorch;
                 if (carried == null || !carried.IsLit)
                     return;
             }

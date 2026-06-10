@@ -1,5 +1,8 @@
 using UnityEngine;
 using UnityEngine.UI;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 /// <summary>
 /// Single authoritative scene builder. Replaces both DungeonBuilder and
@@ -24,14 +27,28 @@ public class LevelBuilder : MonoBehaviour
     [SerializeField] private Color torchStandColor= new Color(0.12f, 0.08f, 0.04f);
 
     [Header("Puzzle settings")]
-    [SerializeField] private int puzzlesToWin = 2;
+    [SerializeField] private int puzzlesToWin = 1;
 
     // ── Unity Lifecycle ───────────────────────────────────────────────────────
 
     private void Start()
     {
+        EnsureTag("PuzzleBlock");
         EnsureSingletons();
         BuildScene();
+    }
+
+    private static void EnsureTag(string tag)
+    {
+#if UNITY_EDITOR
+        var tagManager = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
+        var tagsProp   = tagManager.FindProperty("tags");
+        for (int i = 0; i < tagsProp.arraySize; i++)
+            if (tagsProp.GetArrayElementAtIndex(i).stringValue == tag) return;
+        tagsProp.InsertArrayElementAtIndex(tagsProp.arraySize);
+        tagsProp.GetArrayElementAtIndex(tagsProp.arraySize - 1).stringValue = tag;
+        tagManager.ApplyModifiedProperties();
+#endif
     }
 
     // ── Bootstrap Singletons ──────────────────────────────────────────────────
@@ -64,7 +81,7 @@ public class LevelBuilder : MonoBehaviour
     private void CreatePlayer()
     {
         var go = new GameObject("Player");
-        go.transform.position = new Vector3(-6f, 1.1f, 0f);
+        go.transform.position = new Vector3(-10f, 1.1f, 0f);
 
         var cc    = go.AddComponent<CharacterController>();
         cc.height = 1.8f;
@@ -108,46 +125,69 @@ public class LevelBuilder : MonoBehaviour
 
     private void CreateIntroRoom(Transform parent)
     {
+        const float W = 20f, D = 18f;
         var room = NewRoom("IntroRoom", parent, Vector3.zero);
-        BuildRoomShell(room, 8f, 8f, omitEast: true);
+        // East wall IS built here; the door opening punches through it visually via PuzzleDoor sliding up
+        BuildRoomShell(room, W, D);
 
-        // Torch near the start
-        CreateTorchStation(room, new Vector3(-3.5f, 0.45f, 1f), "StartTorch", lit: true);
+        // Torch near spawn — auto-lights when player walks close (autoPickupRadius)
+        CreateTorchStation(room, new Vector3(-8f, 0.45f, 0f), "StartTorch", lit: true);
 
-        // Two gravity panels demonstrating direction change
-        CreateGravityPanel(room, "Panel_Right",  new Vector3(-1.5f, 1.5f, 3.5f),
-            Quaternion.Euler(0f, 180f, 0f), Vector3.right);
-        CreateGravityPanel(room, "Panel_Down",   new Vector3(2.2f,  1.5f, 3.5f),
-            Quaternion.Euler(0f, 180f, 0f), Vector3.down);
+        // Platforms to explore
+        CreatePlatform(room, new Vector3(-5f, 1.5f, -4f), new Vector3(3f, 0.3f, 3f), "Platform_A");
+        CreatePlatform(room, new Vector3(2f,  2.2f,  4f), new Vector3(3f, 0.3f, 3f), "Platform_B");
+        CreatePlatform(room, new Vector3(5f,  1.0f, -6f), new Vector3(3f, 0.3f, 3f), "Platform_C");
 
-        // Pre-opened exit door (intro room is a tutorial)
-        var door = CreateDoor(room, new Vector3(4f, 1.2f, 0f), Quaternion.Euler(0f, 90f, 0f), "IntroDoor");
-        door.Open();
+        // Walk-through gravity volumes (columns the player walks into, not thin walls)
+        CreateGravityVolume(room, "GravVol_Right", new Vector3(-2f, wallHeight * 0.5f, 2f),
+            new Vector3(2.5f, wallHeight, 2.5f), Vector3.right);
+        CreateGravityVolume(room, "GravVol_Down",  new Vector3(3f,  wallHeight * 0.5f, -3f),
+            new Vector3(2.5f, wallHeight, 2.5f), Vector3.down);
+
+        // Door to puzzle room — closed, opens when player walks into the trigger zone in front of it
+        var door = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f),
+            Quaternion.Euler(0f, 90f, 0f), "IntroDoor");
+        CreateProximitySwitch(room, new Vector3(W * 0.5f - 2f, 1.1f, 0f), door);
     }
 
-    // ── Room 2: Gravity Cube Puzzle ───────────────────────────────────────────
+    // ── Room 2: Puzzle Room ───────────────────────────────────────────────────
 
     private void CreateGravityCubeRoom(Transform parent)
     {
-        var room = NewRoom("GravityCubeRoom", parent, new Vector3(9f, 0f, 0f));
-        BuildRoomShell(room, 10f, 9f, omitWest: true);
+        const float W = 24f, D = 22f;
+        // Offset so the shared wall between rooms aligns: room1 east wall = room2 west wall = x=10
+        var room = NewRoom("PuzzleRoom", parent, new Vector3(22f, 0f, 0f));
+        // Omit west wall — shared with intro room (intro room's east wall serves as the divider)
+        BuildRoomShell(room, W, D, omitWest: true);
 
-        CreateGravityCube(room, new Vector3(1.8f, 0.5f, -2.5f));
+        CreateGravityCube(room, new Vector3(2f, 0.5f, -4f));
 
-        CreateGravityPanel(room, "Panel_Up",     new Vector3(-3.8f, 1.4f, -1.2f),
-            Quaternion.Euler(0f, 90f, 0f), Vector3.up);
-        CreateGravityPanel(room, "Panel_Down",   new Vector3(0.5f,  3.1f,  1.8f),
-            Quaternion.Euler(90f, 0f, 0f), Vector3.down);
+        // Walk-through gravity volumes
+        CreateGravityVolume(room, "GravVol_Up",    new Vector3(-7f, wallHeight * 0.5f, -6f),
+            new Vector3(3f, wallHeight, 3f), Vector3.up);
+        CreateGravityVolume(room, "GravVol_Down",  new Vector3(4f,  wallHeight * 0.5f,  4f),
+            new Vector3(3f, wallHeight, 3f), Vector3.down);
+        CreateGravityVolume(room, "GravVol_Right", new Vector3(-9f, wallHeight * 0.5f,  3f),
+            new Vector3(3f, wallHeight, 3f), Vector3.right);
 
-        CreatePlatform(room, new Vector3(0.5f,  2.6f, 1.8f), new Vector3(2.4f, 0.3f, 2.4f), "CeilingPlatform");
-        CreatePlatform(room, new Vector3(-2.4f, 1.1f, 3f),   new Vector3(1.8f, 0.3f, 3.4f), "LandingPlatform");
+        // Platforms reachable after gravity flips
+        CreatePlatform(room, new Vector3(4f,   wallHeight - 0.4f,  4f), new Vector3(4f, 0.3f, 4f), "CeilingPlatform");
+        CreatePlatform(room, new Vector3(-6f,  1.1f,  7f),              new Vector3(4f, 0.3f, 4f), "MidPlatform_A");
+        CreatePlatform(room, new Vector3(5f,   2.5f, -7f),              new Vector3(3f, 0.3f, 3f), "MidPlatform_B");
+        CreatePlatform(room, new Vector3(-9f,  1.0f, -3f),              new Vector3(3f, 0.3f, 5f), "LandingPlatform");
 
-        var exitDoor = CreateDoor(room, new Vector3(5f, 1.2f, 0f), Quaternion.Euler(0f, 90f, 0f), "ExitDoor");
+        // Second torch
+        CreateTorchStation(room, new Vector3(-9f, 0.45f, 0f), "PuzzleTorch", lit: false);
 
-        CreateDoorSwitch(room, new Vector3(3f, 1.1f, -1.4f), exitDoor,
-            "Torch Switch", "Bring your lit torch to open the exit.");
+        // Locked exit door
+        var exitDoor = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f),
+            Quaternion.Euler(0f, 90f, 0f), "ExitDoor");
 
-        CreateExitTrigger(room, new Vector3(5.5f, 1f, 0f));
+        // Torch switch near exit door — bring lit torch to open
+        CreateDoorSwitch(room, new Vector3(8f, 1.1f, -2f), exitDoor,
+            "Light the Way", "Bring a lit torch to the glowing switch near the east wall.");
+
+        CreateExitTrigger(room, new Vector3(W * 0.5f + 1f, 1f, 0f));
     }
 
     // ── Room Shell ────────────────────────────────────────────────────────────
@@ -215,17 +255,52 @@ public class LevelBuilder : MonoBehaviour
         ds.SetObjective(obj);
     }
 
+    // Visible thin panel on a wall (kept for legacy use if needed)
     private void CreateGravityPanel(Transform parent, string panelName, Vector3 pos,
         Quaternion rot, Vector3 gravityDir)
     {
         var go = CreateBox(parent, panelName, pos, new Vector3(2.2f, 2.2f, 0.2f), panelColor);
         go.transform.localRotation = rot;
-
         var col       = go.GetComponent<BoxCollider>();
         col.isTrigger = true;
-
-        var gp              = go.AddComponent<GravityPanel>();
+        var gp = go.AddComponent<GravityPanel>();
         gp.SetDirection(gravityDir);
+    }
+
+    // Walk-through gravity volume: visible colored column with a trigger the player walks into.
+    private void CreateGravityVolume(Transform parent, string volName, Vector3 pos,
+        Vector3 size, Vector3 gravityDir)
+    {
+        // Visible marker (semi-transparent blue box)
+        var visual = CreateBox(parent, volName + "_Visual", pos, size * 0.9f, panelColor);
+
+        // Invisible trigger volume (slightly larger so you don't have to be pixel-perfect)
+        var trigger = new GameObject(volName + "_Trigger");
+        trigger.transform.SetParent(parent, false);
+        trigger.transform.localPosition = pos;
+
+        var col       = trigger.AddComponent<BoxCollider>();
+        col.isTrigger = true;
+        col.size      = size;
+
+        var gp = trigger.AddComponent<GravityPanel>();
+        gp.SetDirection(gravityDir);
+    }
+
+    // Proximity switch: player walks into zone and the door opens, no torch needed.
+    private void CreateProximitySwitch(Transform parent, Vector3 pos, PuzzleDoor door)
+    {
+        var go = new GameObject("ProximitySwitch");
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = pos;
+
+        var col       = go.AddComponent<BoxCollider>();
+        col.isTrigger = true;
+        col.size      = new Vector3(3f, 2.2f, 3f);
+
+        var ds = go.AddComponent<DoorSwitch>();
+        ds.SetDoor(door);
+        ds.SetRequireLitTorch(false);
     }
 
     private void CreateGravityCube(Transform parent, Vector3 pos)
@@ -319,47 +394,190 @@ public class LevelBuilder : MonoBehaviour
 
     // ── HUD Builder ───────────────────────────────────────────────────────────
 
+    private static Font _hudFont;
+    private static Font HudFont
+    {
+        get
+        {
+            if (_hudFont != null) return _hudFont;
+            _hudFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (_hudFont == null) _hudFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            if (_hudFont == null) _hudFont = Font.CreateDynamicFontFromOSFont("Arial", 14);
+            return _hudFont;
+        }
+    }
+
     private void BuildHUD()
     {
-        var canvas    = new GameObject("HUD_Canvas").AddComponent<Canvas>();
+        var canvas = new GameObject("HUD_Canvas").AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        var scaler    = canvas.gameObject.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode          = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution  = new Vector2(1920f, 1080f);
+        canvas.gameObject.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
         canvas.gameObject.AddComponent<UnityEngine.UI.GraphicRaycaster>();
 
-        var hud       = MakePanel(canvas.transform, "HUD_Panel",
-            new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(10f, -10f),
-            new Vector2(380f, 140f), new Color(0f, 0f, 0f, 0.45f));
+        // ── Objective panel (top-left) ────────────────────────────────────────
+        var hud = MakeCornerPanel(canvas.transform, "HUD_Panel",
+            new Vector2(0f, 1f), new Vector2(12f, -12f), new Vector2(280f, 148f),
+            new Color(0f, 0f, 0f, 0.6f));
+
+        var objTitle    = MakeLeftText(hud.transform, "—",                         8, 16, Color.white);
+        MakeSeparator(hud.transform, 28f);
+        var objDesc     = MakeLeftText(hud.transform, "",                         32, 13, new Color(0.85f, 0.85f, 0.85f));
+        var progress    = MakeLeftText(hud.transform, $"Puzzles: 0/{puzzlesToWin}", 80, 13, new Color(0.55f, 1f, 0.55f));
+        var torchStatus = MakeLeftText(hud.transform, "Torch: none",             104, 13, new Color(1f, 0.85f, 0.45f));
+        var hint        = MakeLeftText(hud.transform, "",                        128, 12, new Color(0.7f, 0.8f, 1f));
+
+        // ── Controls reminder (bottom-left) ───────────────────────────────────
+        var ctrl = MakeCornerPanel(canvas.transform, "Controls_Panel",
+            new Vector2(0f, 0f), new Vector2(12f, 12f), new Vector2(230f, 140f),
+            new Color(0f, 0f, 0f, 0.55f));
+        MakeLeftText(ctrl.transform, "CONTROLS",            8,  11, new Color(1f, 0.75f, 0.2f));
+        MakeSeparator(ctrl.transform, 22f);
+        MakeLeftText(ctrl.transform, "WASD - Move",        26,  13, Color.white);
+        MakeLeftText(ctrl.transform, "Mouse - Look",       44,  13, Color.white);
+        MakeLeftText(ctrl.transform, "Space - Jump",       62,  13, Color.white);
+        MakeLeftText(ctrl.transform, "E - Pickup  Q - Drop", 80, 13, Color.white);
+        MakeLeftText(ctrl.transform, "F - Torch  LMB - Throw", 98, 13, Color.white);
+        MakeLeftText(ctrl.transform, "Esc - Pause",       116,  13, Color.white);
+
+        // ── Crosshair ─────────────────────────────────────────────────────────
+        BuildCrosshair(canvas.transform);
 
         var ui = hud.AddComponent<UIManager>();
+        ui.Inject(hud, objTitle, objDesc, progress, torchStatus, hint,
+            BuildWinPanel(canvas.transform),
+            BuildPausePanel(canvas.transform));
+    }
 
-        ui.Inject(
-            hud,
-            MakeText(hud.transform, "Objective",  new Vector2(10f, -10f),  20),
-            MakeText(hud.transform, "Description",new Vector2(10f, -35f),  16),
-            MakeText(hud.transform, $"Puzzles: 0/{puzzlesToWin}", new Vector2(10f, -75f),  16),
-            MakeText(hud.transform, "Torch: Unlit",new Vector2(10f, -100f), 16),
-            MakeText(hud.transform, "",            new Vector2(10f, -122f), 14),
-            BuildWinPanel(canvas.transform)
-        );
+    private static GameObject MakeCornerPanel(Transform parent, string name,
+        Vector2 anchor, Vector2 offset, Vector2 size, Color bg)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = rt.pivot = anchor;
+        float signY = (anchor.y < 0.5f) ? 1f : -1f;
+        rt.anchoredPosition = new Vector2(offset.x, offset.y * signY);
+        rt.sizeDelta = size;
+        go.AddComponent<Image>().color = bg;
+        return go;
+    }
+
+    private static Text MakeLeftText(Transform parent, string content, float topOffset, int fontSize, Color color)
+    {
+        var go = new GameObject("T");
+        go.transform.SetParent(parent, false);
+        // Simple top-left anchor — no stretch, no offsetMin/Max conflicts.
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin        = new Vector2(0f, 1f);
+        rt.anchorMax        = new Vector2(0f, 1f);
+        rt.pivot            = new Vector2(0f, 1f);
+        rt.anchoredPosition = new Vector2(8f, -topOffset);
+        rt.sizeDelta        = new Vector2(260f, fontSize + 8f);
+
+        var t = go.AddComponent<Text>();
+        t.text               = content;
+        t.fontSize           = fontSize;
+        t.alignment          = TextAnchor.UpperLeft;
+        t.color              = color;
+        t.font               = HudFont;
+        t.horizontalOverflow = HorizontalWrapMode.Overflow;
+        t.verticalOverflow   = VerticalWrapMode.Overflow;
+        t.raycastTarget      = false;
+        go.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 1f);
+        return t;
+    }
+
+    private static void MakeSeparator(Transform parent, float topOffset)
+    {
+        var go = new GameObject("Sep");
+        go.transform.SetParent(parent, false);
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin        = new Vector2(0f, 1f);
+        rt.anchorMax        = new Vector2(0f, 1f);
+        rt.pivot            = new Vector2(0f, 1f);
+        rt.anchoredPosition = new Vector2(8f, -topOffset);
+        rt.sizeDelta        = new Vector2(260f, 1f);
+        go.AddComponent<Image>().color = new Color(1f, 0.75f, 0.2f, 0.7f);
+    }
+
+    private static void BuildCrosshair(Transform canvasParent)
+    {
+        var go = new GameObject("Crosshair");
+        go.transform.SetParent(canvasParent, false);
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = Vector2.zero;
+        rt.sizeDelta = new Vector2(16f, 16f);
+
+        MakeCrosshairBar(go.transform, new Vector2(16f, 2f));
+        MakeCrosshairBar(go.transform, new Vector2(2f,  16f));
+    }
+
+    private static void MakeCrosshairBar(Transform parent, Vector2 size)
+    {
+        var bar = new GameObject("Bar");
+        bar.transform.SetParent(parent, false);
+        var rt = bar.AddComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = Vector2.zero;
+        rt.sizeDelta = size;
+        bar.AddComponent<Image>().color = new Color(1f, 1f, 1f, 0.9f);
+        bar.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.7f);
     }
 
     private static GameObject BuildWinPanel(Transform canvasParent)
     {
-        var win = MakePanel(canvasParent, "WinPanel",
-            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-            new Vector2(600f, 220f), new Color(0f, 0f, 0f, 0.75f));
-
-        var t  = MakeText(win.transform, "You escaped!", Vector2.zero, 36);
-        var rt = t.GetComponent<RectTransform>();
-        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = Vector2.zero;
-        t.alignment = TextAnchor.MiddleCenter;
-        t.color     = Color.yellow;
-
+        var win = new GameObject("WinPanel");
+        win.transform.SetParent(canvasParent, false);
+        var rt = win.AddComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+        rt.offsetMin = rt.offsetMax = Vector2.zero;
+        win.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.75f);
+        MakeCentredText(win.transform, "YOU ESCAPED!",      48, new Color(1f, 0.85f, 0.1f),          60f);
+        MakeCentredText(win.transform, "Press Esc to quit", 18, new Color(0.75f, 0.75f, 0.75f),      20f);
         win.SetActive(false);
         return win;
+    }
+
+    private static GameObject BuildPausePanel(Transform canvasParent)
+    {
+        var pause = new GameObject("PausePanel");
+        pause.transform.SetParent(canvasParent, false);
+        var rt = pause.AddComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+        rt.offsetMin = rt.offsetMax = Vector2.zero;
+        pause.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.72f);
+        MakeCentredText(pause.transform, "PAUSED",                    40, Color.white,                      160f);
+        MakeCentredText(pause.transform, "WASD - Move",               18, new Color(0.85f, 0.85f, 0.85f),   90f);
+        MakeCentredText(pause.transform, "Mouse - Look",              18, new Color(0.85f, 0.85f, 0.85f),   62f);
+        MakeCentredText(pause.transform, "Space - Jump",              18, new Color(0.85f, 0.85f, 0.85f),   34f);
+        MakeCentredText(pause.transform, "E - Pickup   Q - Drop   F - Toggle", 18, new Color(0.85f, 0.85f, 0.85f), 6f);
+        MakeCentredText(pause.transform, "LMB - Throw",               18, new Color(0.85f, 0.85f, 0.85f),  -22f);
+        MakeCentredText(pause.transform, "Press Esc to resume",       20, new Color(1f, 0.85f, 0.2f),      -80f);
+        pause.SetActive(false);
+        return pause;
+    }
+
+    private static Text MakeCentredText(Transform parent, string content, int fontSize, Color color, float yFromCentre)
+    {
+        var go = new GameObject("T");
+        go.transform.SetParent(parent, false);
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = new Vector2(0f, yFromCentre);
+        rt.sizeDelta = new Vector2(800f, fontSize + 10f);
+
+        var t = go.AddComponent<Text>();
+        t.text               = content;
+        t.fontSize           = fontSize;
+        t.alignment          = TextAnchor.MiddleCenter;
+        t.color              = color;
+        t.font               = HudFont;
+        t.horizontalOverflow = HorizontalWrapMode.Overflow;
+        t.verticalOverflow   = VerticalWrapMode.Overflow;
+        t.raycastTarget      = false;
+        go.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 1f);
+        return t;
     }
 
     private static GameObject MakePanel(Transform parent, string panelName,
@@ -367,40 +585,13 @@ public class LevelBuilder : MonoBehaviour
     {
         var go = new GameObject(panelName);
         go.transform.SetParent(parent, false);
-        var rt          = go.AddComponent<RectTransform>();
-        rt.anchorMin    = anchorMin;
-        rt.anchorMax    = anchorMax;
-        rt.pivot        = anchorMin;
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = anchorMin;
+        rt.anchorMax = anchorMax;
+        rt.pivot     = anchorMin;
         rt.anchoredPosition = anchoredPos;
-        rt.sizeDelta    = size;
-        var img         = go.AddComponent<Image>();
-        img.color       = bgColor;
+        rt.sizeDelta = size;
+        go.AddComponent<Image>().color = bgColor;
         return go;
-    }
-
-    private static Text MakeText(Transform parent, string content, Vector2 pos, int size)
-    {
-        var go = new GameObject("Text_" + content.Substring(0, Mathf.Min(12, content.Length)));
-        go.transform.SetParent(parent, false);
-        go.transform.SetAsLastSibling();
-
-        var rt          = go.AddComponent<RectTransform>();
-        rt.anchorMin    = new Vector2(0f, 1f);
-        rt.anchorMax    = new Vector2(0f, 1f);
-        rt.pivot        = new Vector2(0f, 1f);
-        rt.anchoredPosition = pos;
-        rt.sizeDelta    = new Vector2(360f, 32f);
-
-        var t              = go.AddComponent<Text>();
-        t.text             = content;
-        t.fontSize         = size;
-        t.alignment        = TextAnchor.UpperLeft;
-        t.color            = Color.white;
-        t.font             = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf")
-                          ?? Font.CreateDynamicFontFromOSFont("Arial", size);
-        t.horizontalOverflow = HorizontalWrapMode.Wrap;
-        t.verticalOverflow   = VerticalWrapMode.Truncate;
-        t.raycastTarget      = false;
-        return t;
     }
 }

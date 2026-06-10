@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 /// <summary>
 /// Owns all player input: look, move, jump, torch pickup/drop/toggle.
@@ -37,6 +38,10 @@ public class PlayerController : MonoBehaviour
     private TorchPickup _torch;
     private float _pitch;
 
+    private PlayerInputActions _input;
+    private Vector2 _lookDelta;
+    private Vector2 _moveDelta;
+
     public TorchPickup CarriedTorch => _torch;
     public bool HasTorch            => _torch != null;
 
@@ -45,6 +50,21 @@ public class PlayerController : MonoBehaviour
     private void Awake()
     {
         _cc = GetComponent<CharacterController>();
+        _input = new PlayerInputActions();
+    }
+
+    private void OnEnable()
+    {
+        _input.Player.Enable();
+        _input.Player.Interact.performed  += _ => { if (!HasTorch) TryPickupNearby(); };
+        _input.Player.Drop.performed      += _ => { if (HasTorch) DropTorch(); };
+        _input.Player.ToggleTorch.performed += _ => { if (HasTorch) _torch.ToggleLit(); };
+        _input.Player.Jump.performed      += _ => { if (IsGrounded()) _vertVelocity = -_gravityDir * jumpForce; };
+    }
+
+    private void OnDisable()
+    {
+        _input.Player.Disable();
     }
 
     private void Start()
@@ -64,15 +84,15 @@ public class PlayerController : MonoBehaviour
         HandleLook();
         HandleMove();
         HandleJump();
-        HandleTorchInput();
     }
 
     // ── Input Handlers ────────────────────────────────────────────────────────
 
     private void HandleLook()
     {
-        float yaw   = Input.GetAxis("Mouse X") * lookSensitivity;
-        float pitch = Input.GetAxis("Mouse Y") * lookSensitivity;
+        _lookDelta = _input.Player.Look.ReadValue<Vector2>();
+        float yaw   = _lookDelta.x * lookSensitivity;
+        float pitch = _lookDelta.y * lookSensitivity;
 
         transform.Rotate(Vector3.up * yaw);
 
@@ -82,9 +102,8 @@ public class PlayerController : MonoBehaviour
 
     private void HandleMove()
     {
-        float fwd    = Input.GetAxis("Vertical");
-        float strafe = Input.GetAxis("Horizontal");
-        Vector3 move = (transform.forward * fwd + transform.right * strafe).normalized * moveSpeed;
+        _moveDelta = _input.Player.Move.ReadValue<Vector2>();
+        Vector3 move = (transform.forward * _moveDelta.y + transform.right * _moveDelta.x).normalized * moveSpeed;
 
         if (IsGrounded())
             _vertVelocity = Vector3.zero;
@@ -94,26 +113,7 @@ public class PlayerController : MonoBehaviour
         _cc.Move((move + _vertVelocity) * Time.deltaTime);
     }
 
-    private void HandleJump()
-    {
-        if (Input.GetButtonDown("Jump") && IsGrounded())
-            _vertVelocity = -_gravityDir * jumpForce;
-    }
-
-    private void HandleTorchInput()
-    {
-        // E  = pick up nearest torch (if not already holding one)
-        if (Input.GetKeyDown(KeyCode.E) && !HasTorch)
-            TryPickupNearby();
-
-        // Q  = drop carried torch
-        if (Input.GetKeyDown(KeyCode.Q) && HasTorch)
-            DropTorch();
-
-        // F  = toggle lit state
-        if (Input.GetKeyDown(KeyCode.F) && HasTorch)
-            _torch.ToggleLit();
-    }
+    private void HandleJump() { /* handled via OnEnable callback */ }
 
     // ── Torch API (called by TorchPickup proximity detection too) ────────────
 

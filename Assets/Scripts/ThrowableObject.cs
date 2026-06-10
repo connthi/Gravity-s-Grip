@@ -8,8 +8,6 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class ThrowableObject : MonoBehaviour
 {
-    [SerializeField] private float throwForce = 8f;
-
     private Rigidbody            _rb;
     private GravityAffectedObject _gao;
     private bool                 _held;
