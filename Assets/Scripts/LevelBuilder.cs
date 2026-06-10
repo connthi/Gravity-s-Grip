@@ -140,10 +140,13 @@ public class LevelBuilder : MonoBehaviour
         CreateGravityVolume(room, "GravVol_Forward", new Vector3( 0f, 0f, -5f), Vector3.forward);
         CreateGravityVolume(room, "GravVol_Down",    new Vector3( 4f, 0f, -2f), Vector3.down);
 
-        // Green wall-mounted gravity-reset tiles on every wall — walk to any wall to un-stick
-        CreateWallGravityReset(room, "Reset_W",  new Vector3(-W * 0.5f + 0.12f, 1.75f,  0f), new Vector3(0.12f, 2f, 2.5f));
-        CreateWallGravityReset(room, "Reset_N",  new Vector3(0f, 1.75f,  D * 0.5f - 0.12f), new Vector3(2.5f, 2f, 0.12f));
-        CreateWallGravityReset(room, "Reset_S",  new Vector3(0f, 1.75f, -D * 0.5f + 0.12f), new Vector3(2.5f, 2f, 0.12f));
+        // Floor-level green reset tiles along every wall base.
+        // When stuck on a wall, walk toward the original floor (y≈0) to find these.
+        CreateGravityVolume(room, "Reset_NearW", new Vector3(-8.5f, 0f,  0f), Vector3.down);
+        CreateGravityVolume(room, "Reset_NearN", new Vector3(  0f,  0f,  9f), Vector3.down);
+        CreateGravityVolume(room, "Reset_NearS", new Vector3(  0f,  0f, -9f), Vector3.down);
+        // Invisible ceiling trigger — catches upward-gravity fall immediately.
+        MakeCeilingSafetyTrigger(room, W, D);
 
         // East wall with doorway; door slides open on approach
         var door = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f), Quaternion.identity, "IntroDoor");
@@ -187,25 +190,17 @@ public class LevelBuilder : MonoBehaviour
         CreateBox(parent, prefix + "_Header", HPos, HSize, stoneColor);
     }
 
-    // Bright green wall tile + deep trigger behind it that resets gravity to down.
-    private void CreateWallGravityReset(Transform parent, string name, Vector3 tileCenter, Vector3 tileSize)
+    // Invisible trigger that spans the ceiling — resets gravity to down when the player
+    // hits the ceiling (catches the "gravity up" case where no floor tile is reachable).
+    private void MakeCeilingSafetyTrigger(Transform parent, float w, float d)
     {
-        var resetColor = new Color(0.1f, 0.75f, 0.25f);
-        CreateBox(parent, name + "_Tile", tileCenter, tileSize, resetColor);
-
-        var trigger = new GameObject(name + "_Reset");
-        trigger.transform.SetParent(parent, false);
-        trigger.transform.localPosition = tileCenter;
-
-        // Trigger is larger than the tile so it's easy to walk into
-        var col       = trigger.AddComponent<BoxCollider>();
+        var go = new GameObject("Safety_Ceil");
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = new Vector3(0f, wallHeight - 0.4f, 0f);
+        var col = go.AddComponent<BoxCollider>();
         col.isTrigger = true;
-        col.size      = new Vector3(
-            Mathf.Max(tileSize.x, 1.5f),
-            tileSize.y,
-            Mathf.Max(tileSize.z, 1.5f));
-
-        var gp = trigger.AddComponent<GravityPanel>();
+        col.size = new Vector3(w - 1f, 0.8f, d - 1f);
+        var gp = go.AddComponent<GravityPanel>();
         gp.SetDirection(Vector3.down);
     }
 
@@ -229,9 +224,11 @@ public class LevelBuilder : MonoBehaviour
         CreateGravityVolume(room, "GravVol_Forward", new Vector3(-4f, 0f,  0f), Vector3.forward);
         CreateGravityVolume(room, "GravVol_Back",    new Vector3( 5f, 0f, -6f), Vector3.back);
 
-        // Green wall-reset tiles on N/S walls (west side is the open doorway, no wall there)
-        CreateWallGravityReset(room, "Reset_N",  new Vector3(0f, 1.75f,  D * 0.5f - 0.12f), new Vector3(2.5f, 2f, 0.12f));
-        CreateWallGravityReset(room, "Reset_S",  new Vector3(0f, 1.75f, -D * 0.5f + 0.12f), new Vector3(2.5f, 2f, 0.12f));
+        // Floor-level green reset tiles along every wall base + ceiling safety trigger.
+        CreateGravityVolume(room, "Reset_NearN", new Vector3(  0f,  0f,  9f),  Vector3.down);
+        CreateGravityVolume(room, "Reset_NearS", new Vector3(  0f,  0f, -9f),  Vector3.down);
+        CreateGravityVolume(room, "Reset_NearE", new Vector3(10.5f, 0f,  0f),  Vector3.down);
+        MakeCeilingSafetyTrigger(room, W, D);
 
         CreatePlatform(room, new Vector3(4f,  wallHeight - 0.4f,  4f), new Vector3(4f, 0.3f, 4f), "CeilingPlatform");
         CreatePlatform(room, new Vector3(-6f, 1.1f,  7f),              new Vector3(4f, 0.3f, 4f), "MidPlatform_A");
