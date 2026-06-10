@@ -18,8 +18,9 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private LayerMask groundMask  = ~0;
 
     [Header("Look")]
-    [SerializeField] private float lookSensitivity = 2f;
-    [SerializeField] private float maxPitchAngle   = 80f;
+    [SerializeField] private float lookSensitivity  = 2f;
+    [SerializeField] private float maxPitchAngle    = 80f;
+    [SerializeField] private float gravityFlipSpeed = 4f;
 
     [Header("References — auto-found if blank")]
     [SerializeField] private Transform cameraHolder;
@@ -33,10 +34,14 @@ public class PlayerController : MonoBehaviour
     // ── State ─────────────────────────────────────────────────────────────────
 
     private CharacterController _cc;
-    private Vector3 _gravityDir    = Vector3.down;
-    private Vector3 _vertVelocity  = Vector3.zero;
+    private Vector3 _gravityDir       = Vector3.down;
+    private Vector3 _vertVelocity     = Vector3.zero;
     private TorchPickup _torch;
     private float _pitch;
+
+    // Gravity-up visual tracking — smoothly rotates camera to match current gravity.
+    private Vector3 _gravityUp        = Vector3.up;
+    private Vector3 _gravityUpTarget  = Vector3.up;
 
     private PlayerInputActions _input;
     private Vector2 _lookDelta;
@@ -81,6 +86,9 @@ public class PlayerController : MonoBehaviour
         if (GameManager.Instance != null && GameManager.Instance.State != GameManager.GameState.Playing)
             return;
 
+        // Smoothly rotate the camera's "up" toward the current anti-gravity direction.
+        _gravityUp = Vector3.Slerp(_gravityUp, _gravityUpTarget, Time.deltaTime * gravityFlipSpeed).normalized;
+
         HandleLook();
         HandleMove();
         HandleJump();
@@ -94,10 +102,18 @@ public class PlayerController : MonoBehaviour
         float yaw   = _lookDelta.x * lookSensitivity;
         float pitch = _lookDelta.y * lookSensitivity;
 
-        transform.Rotate(Vector3.up * yaw);
+        // Yaw around the smooth gravity-up axis so turning always feels natural.
+        transform.Rotate(_gravityUp, yaw, Space.World);
+
+        // Re-align the player body's up to match gravity-up while keeping forward direction.
+        Vector3 fwd = Vector3.ProjectOnPlane(transform.forward, _gravityUp);
+        if (fwd.sqrMagnitude < 0.001f)
+            fwd = Vector3.ProjectOnPlane(transform.right, _gravityUp);
+        if (fwd.sqrMagnitude > 0.001f)
+            transform.rotation = Quaternion.LookRotation(fwd.normalized, _gravityUp);
 
         _pitch = Mathf.Clamp(_pitch - pitch, -maxPitchAngle, maxPitchAngle);
-        cameraHolder.localEulerAngles = new Vector3(_pitch, 0f, 0f);
+        cameraHolder.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
     }
 
     private void HandleMove()
@@ -139,7 +155,8 @@ public class PlayerController : MonoBehaviour
 
     public void SetGravityDirection(Vector3 dir)
     {
-        _gravityDir = dir.normalized;
+        _gravityDir       = dir.normalized;
+        _gravityUpTarget  = -_gravityDir;   // camera will smoothly roll toward this
     }
 
     // ── Private Helpers ───────────────────────────────────────────────────────
