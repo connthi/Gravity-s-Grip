@@ -63,7 +63,7 @@ public class PlayerInputActions : IInputActionCollection2
         UI = new UIActions(uiMap);
     }
 
-    public void Dispose() => asset.Dispose();
+    public void Dispose() => UnityEngine.Object.Destroy(asset);
 
     public InputBinding? bindingMask
     {
