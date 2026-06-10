@@ -92,15 +92,16 @@ public class UIManager : MonoBehaviour
         GameObject hud,
         Text objTitle, Text objDesc,
         Text progress, Text torchStatus, Text hint,
-        GameObject win)
+        GameObject win, GameObject pause)
     {
-        hudPanel          = hud;
+        hudPanel           = hud;
         objectiveTitleText = objTitle;
         objectiveDescText  = objDesc;
         progressText       = progress;
         torchStatusText    = torchStatus;
         hintText           = hint;
         winPanel           = win;
+        pausePanel         = pause;
     }
 
     // -- Event Handlers -------------------------------------------------------
