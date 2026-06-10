@@ -1,5 +1,6 @@
 // Auto-generated equivalent of what Unity's Input System code generator produces.
 // If you later use Generate C# Class on the .inputactions asset, delete this file.
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Utilities;
@@ -87,7 +88,7 @@ public class PlayerInputActions : IInputActionCollection2
     public void Enable()  => asset.Enable();
     public void Disable() => asset.Disable();
 
-    public IEnumerable<InputBinding> bindings => asset.bindings;
+    IEnumerable<InputBinding> IInputActionCollection2.bindings => asset.bindings;
 
     public InputAction FindAction(string actionNameOrId, bool throwIfNotFound = false)
         => asset.FindAction(actionNameOrId, throwIfNotFound);
