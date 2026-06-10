@@ -224,10 +224,9 @@ public class LevelBuilder : MonoBehaviour
         CreateGravityVolume(room, "GravVol_Right", new Vector3(-9f, 0f,  3f), Vector3.right);
         CreateGravityVolume(room, "GravVol_Left",  new Vector3( 9f, 0f, -4f), Vector3.left);
 
-        // Green wall-reset tiles on every wall so gravity can always be undone
+        // Green wall-reset tiles on N/S walls (west side is the open doorway, no wall there)
         CreateWallGravityReset(room, "Reset_N",  new Vector3(0f, 1.75f,  D * 0.5f - 0.12f), new Vector3(2.5f, 2f, 0.12f));
         CreateWallGravityReset(room, "Reset_S",  new Vector3(0f, 1.75f, -D * 0.5f + 0.12f), new Vector3(2.5f, 2f, 0.12f));
-        CreateWallGravityReset(room, "Reset_W",  new Vector3(-W * 0.5f + 0.12f, 1.75f, 0f), new Vector3(0.12f, 2f, 2.5f));
 
         CreatePlatform(room, new Vector3(4f,  wallHeight - 0.4f,  4f), new Vector3(4f, 0.3f, 4f), "CeilingPlatform");
         CreatePlatform(room, new Vector3(-6f, 1.1f,  7f),              new Vector3(4f, 0.3f, 4f), "MidPlatform_A");
