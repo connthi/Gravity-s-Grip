@@ -100,6 +100,7 @@ public class LevelBuilder : MonoBehaviour
         CreateLighting(root.transform);
         CreateIntroRoom(root.transform);
         CreateGravityCubeRoom(root.transform);
+        CreateTreasureRoom(root.transform);
     }
 
     // ── Lighting ──────────────────────────────────────────────────────────────
@@ -242,8 +243,85 @@ public class LevelBuilder : MonoBehaviour
         CreateDoorSwitch(room, new Vector3(8f, 1.1f, -2f), exitDoor,
             "Light the Way", "Carry a lit torch to the switch near the east wall to open the exit.");
 
-        // Exit trigger is just outside the east doorway (reachable once exit door is open)
-        CreateExitTrigger(room, new Vector3(W * 0.5f + 1.5f, 1f, 0f));
+        // No exit trigger — the treasure room itself is the reward.
+    }
+
+    // ── Room 3: Treasure Room ─────────────────────────────────────────────────
+
+    private void CreateTreasureRoom(Transform parent)
+    {
+        // Sits directly east of Room 2 (Room 2 east wall = world x 34).
+        // offset x=39 + W/2=5 puts the west wall at world x=34, matching the exit doorway.
+        const float W = 10f, D = 14f;
+        var room = NewRoom("TreasureRoom", parent, new Vector3(39f, 0f, 0f));
+
+        Color wallGold  = new Color(0.22f, 0.18f, 0.06f);  // dark warm stone
+        Color goldBright= new Color(1.00f, 0.82f, 0.12f);
+        Color goldDark  = new Color(0.72f, 0.50f, 0.04f);
+        Color goldShiny = new Color(1.00f, 0.94f, 0.45f);
+        Color gemRed    = new Color(0.85f, 0.10f, 0.10f);
+        Color gemBlue   = new Color(0.10f, 0.30f, 0.90f);
+
+        // Walls / shell — warm dark-gold stone
+        CreateBox(room, "Floor",   new Vector3(0f, 0f, 0f),             new Vector3(W, 0.2f, D), wallGold);
+        CreateBox(room, "Ceiling", new Vector3(0f, wallHeight, 0f),     new Vector3(W + wallThickness, 0.2f, D + wallThickness), wallGold);
+        CreateBox(room, "WallN",   new Vector3(0f, wallHeight*0.5f,  D*0.5f), new Vector3(W + wallThickness, wallHeight, wallThickness), wallGold);
+        CreateBox(room, "WallS",   new Vector3(0f, wallHeight*0.5f, -D*0.5f), new Vector3(W + wallThickness, wallHeight, wallThickness), wallGold);
+        CreateBox(room, "WallE",   new Vector3(W*0.5f, wallHeight*0.5f, 0f),  new Vector3(wallThickness, wallHeight, D), wallGold);
+        // West wall omitted — open to Room 2
+
+        // Gold floor overlay
+        CreateBox(room, "GoldFloor", new Vector3(0f, 0.11f, 0f), new Vector3(W - 0.5f, 0.04f, D - 0.5f), goldDark);
+
+        // ── Central treasure mound ────────────────────────────────────────────
+        CreateBox(room, "Mound_Base", new Vector3(1.5f, 0.35f, 0f), new Vector3(4f, 0.7f, 3.5f), goldDark);
+        CreateBox(room, "Mound_Mid",  new Vector3(1.5f, 0.85f, 0f), new Vector3(2.8f, 0.5f, 2.5f), goldBright);
+        CreateBox(room, "Mound_Top",  new Vector3(1.5f, 1.20f, 0f), new Vector3(1.5f, 0.4f, 1.5f), goldShiny);
+        CreateBox(room, "Mound_Peak", new Vector3(1.5f, 1.55f, 0f), new Vector3(0.7f, 0.3f, 0.7f), goldShiny);
+
+        // ── Chests ────────────────────────────────────────────────────────────
+        // Left chest (open)
+        CreateBox(room, "ChestL_Body", new Vector3(-2f, 0.30f, -3.5f), new Vector3(1.6f, 0.6f, 1.0f), goldDark);
+        CreateBox(room, "ChestL_Lid",  new Vector3(-2f, 0.68f, -3.5f), new Vector3(1.6f, 0.28f, 1.0f), goldBright);
+        CreateBox(room, "ChestL_Rim",  new Vector3(-2f, 0.50f, -3.5f), new Vector3(1.7f, 0.08f, 1.1f), goldShiny);
+        CreateBox(room, "ChestL_Gems", new Vector3(-2f, 0.65f, -3.5f), new Vector3(0.4f, 0.15f, 0.4f), gemRed);
+
+        // Right chest (open)
+        CreateBox(room, "ChestR_Body", new Vector3(-2f, 0.30f,  3.5f), new Vector3(1.6f, 0.6f, 1.0f), goldDark);
+        CreateBox(room, "ChestR_Lid",  new Vector3(-2f, 0.68f,  3.5f), new Vector3(1.6f, 0.28f, 1.0f), goldBright);
+        CreateBox(room, "ChestR_Rim",  new Vector3(-2f, 0.50f,  3.5f), new Vector3(1.7f, 0.08f, 1.1f), goldShiny);
+        CreateBox(room, "ChestR_Gems", new Vector3(-2f, 0.65f,  3.5f), new Vector3(0.4f, 0.15f, 0.4f), gemBlue);
+
+        // ── Scattered coins / nuggets ─────────────────────────────────────────
+        CreateBox(room, "Coins_A", new Vector3( 0.0f, 0.13f,  2.0f), new Vector3(1.2f, 0.05f, 0.8f), goldShiny);
+        CreateBox(room, "Coins_B", new Vector3(-1.5f, 0.13f, -1.5f), new Vector3(0.9f, 0.05f, 0.6f), goldShiny);
+        CreateBox(room, "Coins_C", new Vector3( 3.0f, 0.13f,  1.0f), new Vector3(0.7f, 0.05f, 0.5f), goldBright);
+        CreateBox(room, "Coins_D", new Vector3(-2.5f, 0.13f,  1.0f), new Vector3(1.0f, 0.05f, 0.7f), goldShiny);
+        CreateBox(room, "Nugget_A",new Vector3( 0.5f, 0.22f, -2.5f), new Vector3(0.5f, 0.20f, 0.4f), goldBright);
+        CreateBox(room, "Nugget_B",new Vector3( 3.5f, 0.22f, -1.5f), new Vector3(0.4f, 0.20f, 0.4f), goldShiny);
+
+        // ── Gold pillars ──────────────────────────────────────────────────────
+        float ph = wallHeight;
+        CreateBox(room, "Pillar_NW", new Vector3(-4f, ph*0.5f,  5.5f), new Vector3(0.6f, ph, 0.6f), goldDark);
+        CreateBox(room, "Pillar_SW", new Vector3(-4f, ph*0.5f, -5.5f), new Vector3(0.6f, ph, 0.6f), goldDark);
+        CreateBox(room, "Pillar_NE", new Vector3( 4f, ph*0.5f,  5.5f), new Vector3(0.6f, ph, 0.6f), goldDark);
+        CreateBox(room, "Pillar_SE", new Vector3( 4f, ph*0.5f, -5.5f), new Vector3(0.6f, ph, 0.6f), goldDark);
+        // Pillar caps
+        CreateBox(room, "Cap_NW", new Vector3(-4f, ph + 0.15f,  5.5f), new Vector3(0.9f, 0.3f, 0.9f), goldShiny);
+        CreateBox(room, "Cap_SW", new Vector3(-4f, ph + 0.15f, -5.5f), new Vector3(0.9f, 0.3f, 0.9f), goldShiny);
+        CreateBox(room, "Cap_NE", new Vector3( 4f, ph + 0.15f,  5.5f), new Vector3(0.9f, 0.3f, 0.9f), goldShiny);
+        CreateBox(room, "Cap_SE", new Vector3( 4f, ph + 0.15f, -5.5f), new Vector3(0.9f, 0.3f, 0.9f), goldShiny);
+
+        // ── Warm golden point light ───────────────────────────────────────────
+        var lg = new GameObject("TreasureLight");
+        lg.transform.SetParent(room, false);
+        lg.transform.localPosition = new Vector3(1.5f, 2.5f, 0f);
+        var l = lg.AddComponent<Light>();
+        l.type      = LightType.Point;
+        l.color     = new Color(1f, 0.88f, 0.35f);
+        l.intensity = 4f;
+        l.range     = 18f;
+        l.shadows   = LightShadows.Soft;
     }
 
     // ── Room Shell ────────────────────────────────────────────────────────────
