@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 /// <summary>
 /// Lets the player grab and throw objects tagged "Throwable".
@@ -12,6 +13,36 @@ public class PlayerGrabber : MonoBehaviour
     private Camera           _cam;
     private Transform        _holdPoint;
     private ThrowableObject  _held;
+    private PlayerInputActions _input;
+
+    private void Awake()
+    {
+        _input = new PlayerInputActions();
+    }
+
+    private void OnEnable()
+    {
+        _input.Player.Enable();
+        _input.Player.Interact.performed += _ =>
+        {
+            if (!IsPlaying()) return;
+            if (_held != null) Release();
+            else               TryGrab();
+        };
+        _input.Player.Throw.performed += _ =>
+        {
+            if (!IsPlaying()) return;
+            if (_held != null) Throw();
+        };
+    }
+
+    private void OnDisable()
+    {
+        _input.Player.Disable();
+    }
+
+    private bool IsPlaying()
+        => GameManager.Instance == null || GameManager.Instance.State == GameManager.GameState.Playing;
 
     private void Start()
     {
@@ -23,20 +54,7 @@ public class PlayerGrabber : MonoBehaviour
         _holdPoint = go.transform;
     }
 
-    private void Update()
-    {
-        if (GameManager.Instance != null && GameManager.Instance.State != GameManager.GameState.Playing)
-            return;
-
-        if (Input.GetKeyDown(KeyCode.E))
-        {
-            if (_held != null) Release();
-            else               TryGrab();
-        }
-
-        if (_held != null && Input.GetMouseButtonDown(0))
-            Throw();
-    }
+    private void Update() { }
 
     private void TryGrab()
     {

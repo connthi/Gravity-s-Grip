@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 /// <summary>
@@ -19,6 +20,8 @@ public class GameManager : MonoBehaviour
     [Header("References")]
     [SerializeField] private UIManager uiManager;
 
+    private PlayerInputActions _input;
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -27,6 +30,18 @@ public class GameManager : MonoBehaviour
             return;
         }
         Instance = this;
+        _input = new PlayerInputActions();
+    }
+
+    private void OnEnable()
+    {
+        _input.UI.Enable();
+        _input.UI.Pause.performed += _ => TogglePause();
+    }
+
+    private void OnDisable()
+    {
+        _input.UI.Disable();
     }
 
     private void Start()
@@ -35,12 +50,6 @@ public class GameManager : MonoBehaviour
             uiManager = FindAnyObjectByType<UIManager>();
 
         SetState(GameState.Playing);
-    }
-
-    private void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.Escape))
-            TogglePause();
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
