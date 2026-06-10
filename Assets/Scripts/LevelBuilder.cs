@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 #if UNITY_EDITOR
@@ -380,24 +381,6 @@ public class LevelBuilder : MonoBehaviour
 
     // ── HUD Builder ───────────────────────────────────────────────────────────
 
-    // No static cache — avoids stale destroyed-font references across Play-mode runs.
-    private static Font LoadHudFont()
-    {
-        Font f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        if (f != null) return f;
-        f = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        if (f != null) return f;
-        // Fall back to first available OS font (always non-null on Windows)
-        string[] names = Font.GetOSInstalledFontNames();
-        foreach (string n in new[] { "Segoe UI", "Arial", "Tahoma", "Verdana" })
-            foreach (string installed in names)
-                if (installed.Equals(n, System.StringComparison.OrdinalIgnoreCase))
-                    return Font.CreateDynamicFontFromOSFont(installed, 16);
-        if (names != null && names.Length > 0)
-            return Font.CreateDynamicFontFromOSFont(names[0], 16);
-        return null;
-    }
-
     private void BuildHUD()
     {
         var canvas = new GameObject("HUD_Canvas").AddComponent<Canvas>();
@@ -405,32 +388,29 @@ public class LevelBuilder : MonoBehaviour
         canvas.gameObject.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
         canvas.gameObject.AddComponent<UnityEngine.UI.GraphicRaycaster>();
 
-        // ── Objective panel (top-left) ────────────────────────────────────────
-        var hud = MakeCornerPanel(canvas.transform, "HUD_Panel",
-            new Vector2(0f, 1f), new Vector2(12f, -12f), new Vector2(280f, 148f),
+        var hud = MakePanel(canvas.transform, "HUD_Panel",
+            new Vector2(0f, 1f), new Vector2(12f, -12f), new Vector2(300f, 155f),
             new Color(0f, 0f, 0f, 0.6f));
 
-        var objTitle    = MakeLeftText(hud.transform, "—",                         8, 16, Color.white);
-        MakeSeparator(hud.transform, 28f);
-        var objDesc     = MakeLeftText(hud.transform, "",                         32, 13, new Color(0.85f, 0.85f, 0.85f));
-        var progress    = MakeLeftText(hud.transform, $"Puzzles: 0/{puzzlesToWin}", 80, 13, new Color(0.55f, 1f, 0.55f));
-        var torchStatus = MakeLeftText(hud.transform, "Torch: none",             104, 13, new Color(1f, 0.85f, 0.45f));
-        var hint        = MakeLeftText(hud.transform, "",                        128, 12, new Color(0.7f, 0.8f, 1f));
+        var objTitle    = MakeTMP(hud.transform,  "—",                          8,  16, Color.white,                    TextAlignmentOptions.TopLeft);
+        MakeSeparator(hud.transform, 30f);
+        var objDesc     = MakeTMP(hud.transform,  "",                          34,  13, new Color(0.85f, 0.85f, 0.85f), TextAlignmentOptions.TopLeft);
+        var progress    = MakeTMP(hud.transform,  $"Puzzles: 0/{puzzlesToWin}", 82,  13, new Color(0.55f, 1f, 0.55f),   TextAlignmentOptions.TopLeft);
+        var torchStatus = MakeTMP(hud.transform,  "Torch: none",               106,  13, new Color(1f, 0.85f, 0.45f),  TextAlignmentOptions.TopLeft);
+        var hint        = MakeTMP(hud.transform,  "",                          130,  12, new Color(0.7f, 0.8f, 1f),    TextAlignmentOptions.TopLeft);
 
-        // ── Controls reminder (bottom-left) ───────────────────────────────────
-        var ctrl = MakeCornerPanel(canvas.transform, "Controls_Panel",
-            new Vector2(0f, 0f), new Vector2(12f, 12f), new Vector2(230f, 140f),
+        var ctrl = MakePanel(canvas.transform, "Controls_Panel",
+            new Vector2(0f, 0f), new Vector2(12f, 12f), new Vector2(240f, 148f),
             new Color(0f, 0f, 0f, 0.55f));
-        MakeLeftText(ctrl.transform, "CONTROLS",            8,  11, new Color(1f, 0.75f, 0.2f));
-        MakeSeparator(ctrl.transform, 22f);
-        MakeLeftText(ctrl.transform, "WASD - Move",        26,  13, Color.white);
-        MakeLeftText(ctrl.transform, "Mouse - Look",       44,  13, Color.white);
-        MakeLeftText(ctrl.transform, "Space - Jump",       62,  13, Color.white);
-        MakeLeftText(ctrl.transform, "E - Pickup  Q - Drop", 80, 13, Color.white);
-        MakeLeftText(ctrl.transform, "F - Torch  LMB - Throw", 98, 13, Color.white);
-        MakeLeftText(ctrl.transform, "Esc - Pause",       116,  13, Color.white);
+        MakeTMP(ctrl.transform, "CONTROLS",              8,  11, new Color(1f, 0.75f, 0.2f), TextAlignmentOptions.TopLeft);
+        MakeSeparator(ctrl.transform, 24f);
+        MakeTMP(ctrl.transform, "WASD - Move",          28,  13, Color.white, TextAlignmentOptions.TopLeft);
+        MakeTMP(ctrl.transform, "Mouse - Look",         46,  13, Color.white, TextAlignmentOptions.TopLeft);
+        MakeTMP(ctrl.transform, "Space - Jump",         64,  13, Color.white, TextAlignmentOptions.TopLeft);
+        MakeTMP(ctrl.transform, "E - Pickup  Q - Drop", 82,  13, Color.white, TextAlignmentOptions.TopLeft);
+        MakeTMP(ctrl.transform, "F - Torch  LMB - Throw",100, 13, Color.white, TextAlignmentOptions.TopLeft);
+        MakeTMP(ctrl.transform, "Esc - Pause",          118, 13, Color.white, TextAlignmentOptions.TopLeft);
 
-        // ── Crosshair ─────────────────────────────────────────────────────────
         BuildCrosshair(canvas.transform);
 
         var ui = hud.AddComponent<UIManager>();
@@ -439,7 +419,7 @@ public class LevelBuilder : MonoBehaviour
             BuildPausePanel(canvas.transform));
     }
 
-    private static GameObject MakeCornerPanel(Transform parent, string name,
+    private static GameObject MakePanel(Transform parent, string name,
         Vector2 anchor, Vector2 offset, Vector2 size, Color bg)
     {
         var go = new GameObject(name);
@@ -453,28 +433,25 @@ public class LevelBuilder : MonoBehaviour
         return go;
     }
 
-    private static Text MakeLeftText(Transform parent, string content, float topOffset, int fontSize, Color color)
+    private static TMP_Text MakeTMP(Transform parent, string content, float topOffset,
+        float fontSize, Color color, TextAlignmentOptions align)
     {
         var go = new GameObject("T");
         go.transform.SetParent(parent, false);
-        // Simple top-left anchor — no stretch, no offsetMin/Max conflicts.
         var rt = go.AddComponent<RectTransform>();
         rt.anchorMin        = new Vector2(0f, 1f);
         rt.anchorMax        = new Vector2(0f, 1f);
         rt.pivot            = new Vector2(0f, 1f);
         rt.anchoredPosition = new Vector2(8f, -topOffset);
-        rt.sizeDelta        = new Vector2(260f, fontSize + 8f);
+        rt.sizeDelta        = new Vector2(280f, fontSize + 8f);
 
-        var t = go.AddComponent<Text>();
-        t.text               = content;
-        t.fontSize           = fontSize;
-        t.alignment          = TextAnchor.UpperLeft;
-        t.color              = color;
-        t.font               = LoadHudFont();
-        t.horizontalOverflow = HorizontalWrapMode.Overflow;
-        t.verticalOverflow   = VerticalWrapMode.Overflow;
-        t.raycastTarget      = false;
-        go.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 1f);
+        var t = go.AddComponent<TextMeshProUGUI>();
+        t.text           = content;
+        t.fontSize       = fontSize;
+        t.color          = color;
+        t.alignment      = align;
+        t.raycastTarget  = false;
+        t.overflowMode   = TextOverflowModes.Overflow;
         return t;
     }
 
@@ -499,7 +476,6 @@ public class LevelBuilder : MonoBehaviour
         rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
         rt.anchoredPosition = Vector2.zero;
         rt.sizeDelta = new Vector2(16f, 16f);
-
         MakeCrosshairBar(go.transform, new Vector2(16f, 2f));
         MakeCrosshairBar(go.transform, new Vector2(2f,  16f));
     }
@@ -513,7 +489,6 @@ public class LevelBuilder : MonoBehaviour
         rt.anchoredPosition = Vector2.zero;
         rt.sizeDelta = size;
         bar.AddComponent<Image>().color = new Color(1f, 1f, 1f, 0.9f);
-        bar.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.7f);
     }
 
     private static GameObject BuildWinPanel(Transform canvasParent)
@@ -523,9 +498,9 @@ public class LevelBuilder : MonoBehaviour
         var rt = win.AddComponent<RectTransform>();
         rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
         rt.offsetMin = rt.offsetMax = Vector2.zero;
-        win.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.75f);
-        MakeCentredText(win.transform, "YOU ESCAPED!",      48, new Color(1f, 0.85f, 0.1f),          60f);
-        MakeCentredText(win.transform, "Press Esc to quit", 18, new Color(0.75f, 0.75f, 0.75f),      20f);
+        win.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.78f);
+        MakeCentredTMP(win.transform, "YOU ESCAPED!",       48, new Color(1f, 0.85f, 0.1f),     60f);
+        MakeCentredTMP(win.transform, "Press Esc to quit",  20, new Color(0.75f, 0.75f, 0.75f), 10f);
         win.SetActive(false);
         return win;
     }
@@ -538,51 +513,33 @@ public class LevelBuilder : MonoBehaviour
         rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
         rt.offsetMin = rt.offsetMax = Vector2.zero;
         pause.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.72f);
-        MakeCentredText(pause.transform, "PAUSED",                    40, Color.white,                      160f);
-        MakeCentredText(pause.transform, "WASD - Move",               18, new Color(0.85f, 0.85f, 0.85f),   90f);
-        MakeCentredText(pause.transform, "Mouse - Look",              18, new Color(0.85f, 0.85f, 0.85f),   62f);
-        MakeCentredText(pause.transform, "Space - Jump",              18, new Color(0.85f, 0.85f, 0.85f),   34f);
-        MakeCentredText(pause.transform, "E - Pickup   Q - Drop   F - Toggle", 18, new Color(0.85f, 0.85f, 0.85f), 6f);
-        MakeCentredText(pause.transform, "LMB - Throw",               18, new Color(0.85f, 0.85f, 0.85f),  -22f);
-        MakeCentredText(pause.transform, "Press Esc to resume",       20, new Color(1f, 0.85f, 0.2f),      -80f);
+        MakeCentredTMP(pause.transform, "PAUSED",                              40, Color.white,                      160f);
+        MakeCentredTMP(pause.transform, "WASD - Move",                         18, new Color(0.85f, 0.85f, 0.85f),   90f);
+        MakeCentredTMP(pause.transform, "Mouse - Look",                        18, new Color(0.85f, 0.85f, 0.85f),   62f);
+        MakeCentredTMP(pause.transform, "Space - Jump",                        18, new Color(0.85f, 0.85f, 0.85f),   34f);
+        MakeCentredTMP(pause.transform, "E - Pickup   Q - Drop   F - Toggle",  18, new Color(0.85f, 0.85f, 0.85f),   6f);
+        MakeCentredTMP(pause.transform, "LMB - Throw",                         18, new Color(0.85f, 0.85f, 0.85f),  -22f);
+        MakeCentredTMP(pause.transform, "Press Esc to resume",                 22, new Color(1f, 0.85f, 0.2f),      -80f);
         pause.SetActive(false);
         return pause;
     }
 
-    private static Text MakeCentredText(Transform parent, string content, int fontSize, Color color, float yFromCentre)
+    private static TMP_Text MakeCentredTMP(Transform parent, string content, float fontSize, Color color, float yFromCentre)
     {
         var go = new GameObject("T");
         go.transform.SetParent(parent, false);
         var rt = go.AddComponent<RectTransform>();
         rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
         rt.anchoredPosition = new Vector2(0f, yFromCentre);
-        rt.sizeDelta = new Vector2(800f, fontSize + 10f);
+        rt.sizeDelta = new Vector2(800f, fontSize + 12f);
 
-        var t = go.AddComponent<Text>();
-        t.text               = content;
-        t.fontSize           = fontSize;
-        t.alignment          = TextAnchor.MiddleCenter;
-        t.color              = color;
-        t.font               = LoadHudFont();
-        t.horizontalOverflow = HorizontalWrapMode.Overflow;
-        t.verticalOverflow   = VerticalWrapMode.Overflow;
-        t.raycastTarget      = false;
-        go.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 1f);
+        var t = go.AddComponent<TextMeshProUGUI>();
+        t.text          = content;
+        t.fontSize      = fontSize;
+        t.color         = color;
+        t.alignment     = TextAlignmentOptions.Center;
+        t.raycastTarget = false;
+        t.overflowMode  = TextOverflowModes.Overflow;
         return t;
-    }
-
-    private static GameObject MakePanel(Transform parent, string panelName,
-        Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPos, Vector2 size, Color bgColor)
-    {
-        var go = new GameObject(panelName);
-        go.transform.SetParent(parent, false);
-        var rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = anchorMin;
-        rt.anchorMax = anchorMax;
-        rt.pivot     = anchorMin;
-        rt.anchoredPosition = anchoredPos;
-        rt.sizeDelta = size;
-        go.AddComponent<Image>().color = bgColor;
-        return go;
     }
 }
