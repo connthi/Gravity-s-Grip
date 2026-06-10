@@ -124,9 +124,9 @@ public class LevelBuilder : MonoBehaviour
 
     private void CreateIntroRoom(Transform parent)
     {
-        const float W = 20f, D = 18f;
+        const float W = 20f, D = 22f;   // D unified with puzzle room so N/S walls align
         var room = NewRoom("IntroRoom", parent, Vector3.zero);
-        BuildRoomShell(room, W, D, omitEast: true);   // east side handled by CreateRoomConnection
+        BuildRoomShell(room, W, D, omitEast: true);
 
         CreateTorchStation(room, new Vector3(-8f, 0.45f, 0f), "StartTorch", lit: true);
 
@@ -134,37 +134,77 @@ public class LevelBuilder : MonoBehaviour
         CreatePlatform(room, new Vector3(2f,  2.2f,  4f), new Vector3(3f, 0.3f, 3f), "Platform_B");
         CreatePlatform(room, new Vector3(5f,  1.0f, -6f), new Vector3(3f, 0.3f, 3f), "Platform_C");
 
-        // Floor-plate gravity markers — coloured tiles the player steps on
-        CreateGravityVolume(room, "GravVol_Right", new Vector3(-2f, 0f, 2f),  Vector3.right);
-        CreateGravityVolume(room, "GravVol_Down",  new Vector3(3f,  0f, -3f), Vector3.down);
+        // Gravity volumes (floor plates + tall triggers)
+        CreateGravityVolume(room, "GravVol_Right", new Vector3(-2f, 0f,  2f), Vector3.right);
+        CreateGravityVolume(room, "GravVol_Down",  new Vector3( 3f, 0f, -3f), Vector3.down);
 
-        // Shared east wall with a doorway opening + door that slides open on approach
-        var door = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f),
-            Quaternion.identity, "IntroDoor");
-        BuildEastWallWithDoorway(room, W, D);
+        // Green wall-mounted gravity-reset tiles on every wall — walk to any wall to un-stick
+        CreateWallGravityReset(room, "Reset_W",  new Vector3(-W * 0.5f + 0.12f, 1.75f,  0f), new Vector3(0.12f, 2f, 2.5f));
+        CreateWallGravityReset(room, "Reset_N",  new Vector3(0f, 1.75f,  D * 0.5f - 0.12f), new Vector3(2.5f, 2f, 0.12f));
+        CreateWallGravityReset(room, "Reset_S",  new Vector3(0f, 1.75f, -D * 0.5f + 0.12f), new Vector3(2.5f, 2f, 0.12f));
+
+        // East wall with doorway; door slides open on approach
+        var door = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f), Quaternion.identity, "IntroDoor");
+        BuildWallWithDoorway(room, "WallE", W * 0.5f, D, isXAxis: true);
         CreateProximitySwitch(room, new Vector3(W * 0.5f - 2.5f, 1.1f, 0f), door);
     }
 
-    // Builds the east wall of the intro room with a centred doorway opening (no solid east wall otherwise).
-    private void BuildEastWallWithDoorway(Transform parent, float w, float d)
+    // Generic: builds a wall (east or north) with a centred doorway opening split into 3 boxes.
+    // isXAxis=true → wall at x=wallPos facing Z; isXAxis=false → wall at z=wallPos facing X.
+    private void BuildWallWithDoorway(Transform parent, string prefix, float wallPos, float span, bool isXAxis)
     {
-        const float doorwayW = 2.8f;   // slightly wider than door (2.2) for clearance
-        const float doorwayH = 2.6f;   // slightly taller than door (2.4)
+        const float doorwayW = 2.8f;
+        const float doorwayH = 2.6f;
 
-        float sideDepth  = (d - doorwayW) * 0.5f;           // 7.6
-        float sideZ      = doorwayW * 0.5f + sideDepth * 0.5f; // 5.2
-        float headerH    = wallHeight - doorwayH;             // 0.9
-        float wallX      = w * 0.5f;
+        float sideDepth = (span - doorwayW) * 0.5f;
+        float sideOff   = doorwayW * 0.5f + sideDepth * 0.5f;
+        float headerH   = wallHeight - doorwayH;
 
-        CreateBox(parent, "WallE_Left",
-            new Vector3(wallX, wallHeight * 0.5f, -sideZ),
-            new Vector3(wallThickness, wallHeight, sideDepth), stoneColor);
-        CreateBox(parent, "WallE_Right",
-            new Vector3(wallX, wallHeight * 0.5f, sideZ),
-            new Vector3(wallThickness, wallHeight, sideDepth), stoneColor);
-        CreateBox(parent, "WallE_Header",
-            new Vector3(wallX, doorwayH + headerH * 0.5f, 0f),
-            new Vector3(wallThickness, headerH, doorwayW + wallThickness), stoneColor);
+        Vector3 LPos, RPos, HPos, LSize, RSize, HSize;
+        if (isXAxis)
+        {
+            LPos  = new Vector3(wallPos, wallHeight * 0.5f, -sideOff);
+            RPos  = new Vector3(wallPos, wallHeight * 0.5f,  sideOff);
+            HPos  = new Vector3(wallPos, doorwayH + headerH * 0.5f, 0f);
+            LSize = new Vector3(wallThickness, wallHeight, sideDepth);
+            RSize = LSize;
+            HSize = new Vector3(wallThickness, headerH, doorwayW + wallThickness);
+        }
+        else
+        {
+            LPos  = new Vector3(-sideOff, wallHeight * 0.5f, wallPos);
+            RPos  = new Vector3( sideOff, wallHeight * 0.5f, wallPos);
+            HPos  = new Vector3(0f, doorwayH + headerH * 0.5f, wallPos);
+            LSize = new Vector3(sideDepth, wallHeight, wallThickness);
+            RSize = LSize;
+            HSize = new Vector3(doorwayW + wallThickness, headerH, wallThickness);
+        }
+
+        CreateBox(parent, prefix + "_Left",   LPos, LSize, stoneColor);
+        CreateBox(parent, prefix + "_Right",  RPos, RSize, stoneColor);
+        CreateBox(parent, prefix + "_Header", HPos, HSize, stoneColor);
+    }
+
+    // Bright green wall tile + deep trigger behind it that resets gravity to down.
+    private void CreateWallGravityReset(Transform parent, string name, Vector3 tileCenter, Vector3 tileSize)
+    {
+        var resetColor = new Color(0.1f, 0.75f, 0.25f);
+        CreateBox(parent, name + "_Tile", tileCenter, tileSize, resetColor);
+
+        var trigger = new GameObject(name + "_Reset");
+        trigger.transform.SetParent(parent, false);
+        trigger.transform.localPosition = tileCenter;
+
+        // Trigger is larger than the tile so it's easy to walk into
+        var col       = trigger.AddComponent<BoxCollider>();
+        col.isTrigger = true;
+        col.size      = new Vector3(
+            Mathf.Max(tileSize.x, 1.5f),
+            tileSize.y,
+            Mathf.Max(tileSize.z, 1.5f));
+
+        var gp = trigger.AddComponent<GravityPanel>();
+        gp.SetDirection(Vector3.down);
     }
 
     // ── Room 2: Puzzle Room ───────────────────────────────────────────────────
@@ -173,13 +213,21 @@ public class LevelBuilder : MonoBehaviour
     {
         const float W = 24f, D = 22f;
         var room = NewRoom("PuzzleRoom", parent, new Vector3(22f, 0f, 0f));
-        BuildRoomShell(room, W, D, omitWest: true);   // west opening shared with intro room
+        // omitWest: Room 1 already built the shared wall. omitEast: we build the exit doorway below.
+        BuildRoomShell(room, W, D, omitWest: true, omitEast: true);
+        BuildWallWithDoorway(room, "WallE", W * 0.5f, D, isXAxis: true);
 
         CreateGravityCube(room, new Vector3(2f, 0.5f, -4f));
 
         CreateGravityVolume(room, "GravVol_Up",    new Vector3(-7f, 0f, -6f), Vector3.up);
-        CreateGravityVolume(room, "GravVol_Down",  new Vector3(4f,  0f,  4f), Vector3.down);
+        CreateGravityVolume(room, "GravVol_Down",  new Vector3( 4f, 0f,  4f), Vector3.down);
         CreateGravityVolume(room, "GravVol_Right", new Vector3(-9f, 0f,  3f), Vector3.right);
+        CreateGravityVolume(room, "GravVol_Left",  new Vector3( 9f, 0f, -4f), Vector3.left);
+
+        // Green wall-reset tiles on every wall so gravity can always be undone
+        CreateWallGravityReset(room, "Reset_N",  new Vector3(0f, 1.75f,  D * 0.5f - 0.12f), new Vector3(2.5f, 2f, 0.12f));
+        CreateWallGravityReset(room, "Reset_S",  new Vector3(0f, 1.75f, -D * 0.5f + 0.12f), new Vector3(2.5f, 2f, 0.12f));
+        CreateWallGravityReset(room, "Reset_W",  new Vector3(-W * 0.5f + 0.12f, 1.75f, 0f), new Vector3(0.12f, 2f, 2.5f));
 
         CreatePlatform(room, new Vector3(4f,  wallHeight - 0.4f,  4f), new Vector3(4f, 0.3f, 4f), "CeilingPlatform");
         CreatePlatform(room, new Vector3(-6f, 1.1f,  7f),              new Vector3(4f, 0.3f, 4f), "MidPlatform_A");
@@ -188,13 +236,13 @@ public class LevelBuilder : MonoBehaviour
 
         CreateTorchStation(room, new Vector3(-9f, 0.45f, 0f), "PuzzleTorch", lit: false);
 
-        var exitDoor = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f),
-            Quaternion.identity, "ExitDoor");
-
+        // Exit door sits in the east doorway; torch switch opens it
+        var exitDoor = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f), Quaternion.identity, "ExitDoor");
         CreateDoorSwitch(room, new Vector3(8f, 1.1f, -2f), exitDoor,
             "Light the Way", "Carry a lit torch to the switch near the east wall to open the exit.");
 
-        CreateExitTrigger(room, new Vector3(W * 0.5f + 1f, 1f, 0f));
+        // Exit trigger is just outside the east doorway (reachable once exit door is open)
+        CreateExitTrigger(room, new Vector3(W * 0.5f + 1.5f, 1f, 0f));
     }
 
     // ── Room Shell ────────────────────────────────────────────────────────────
