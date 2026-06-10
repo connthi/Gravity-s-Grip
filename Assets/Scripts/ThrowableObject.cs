@@ -1,46 +1,51 @@
 using UnityEngine;
 
+/// <summary>
+/// Lets the player grab and throw this object via PlayerGrabber.
+/// If a GravityAffectedObject component is present it is respected,
+/// otherwise falls back to Rigidbody.useGravity.
+/// </summary>
 [RequireComponent(typeof(Rigidbody))]
 public class ThrowableObject : MonoBehaviour
 {
-    public float holdDistance = 1.5f;
-    public float throwForce = 8f;
+    [SerializeField] private float throwForce = 8f;
 
-    private Rigidbody rb;
-    private bool isHeld;
+    private Rigidbody            _rb;
+    private GravityAffectedObject _gao;
+    private bool                 _held;
 
     private void Awake()
     {
-        rb = GetComponent<Rigidbody>();
+        _rb  = GetComponent<Rigidbody>();
+        _gao = GetComponent<GravityAffectedObject>();
     }
 
     private void Update()
     {
-        if (isHeld)
-        {
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-        }
+        if (!_held) return;
+        _rb.linearVelocity  = Vector3.zero;
+        _rb.angularVelocity = Vector3.zero;
     }
 
     public void PickUp(Transform holdPoint)
     {
-        isHeld = true;
-        rb.isKinematic = true;
+        _held            = true;
+        _rb.isKinematic  = true;
+        if (_gao != null) _gao.enabled = false;
+
         transform.SetParent(holdPoint);
         transform.localPosition = Vector3.zero;
         transform.localRotation = Quaternion.identity;
     }
 
-    public void Drop(Vector3 force)
+    public void Drop(Vector3 impulse)
     {
-        isHeld = false;
-        transform.SetParent(null);
-        rb.isKinematic = false;
+        _held            = false;
+        _rb.isKinematic  = false;
+        if (_gao != null) _gao.enabled = true;
 
-        if (force != Vector3.zero)
-        {
-            rb.AddForce(force, ForceMode.Impulse);
-        }
+        transform.SetParent(null);
+        if (impulse != Vector3.zero)
+            _rb.AddForce(impulse, ForceMode.Impulse);
     }
 }

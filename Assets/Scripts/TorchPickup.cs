@@ -1,187 +1,164 @@
 using UnityEngine;
 
+/// <summary>
+/// Manages a single torch: fuel, lit state, and attach/detach to a holder.
+/// Does NOT read input — PlayerController owns all key handling.
+/// Does NOT touch UI — fire events that listeners can subscribe to.
+/// </summary>
 [RequireComponent(typeof(Collider))]
 public class TorchPickup : MonoBehaviour
 {
-    public float pickupRange = 2f;
-    public bool startLit = true;
-    public float maxFuel = 120f;
-    public float burnRate = 1f;
-    public bool autoIgniteOnPickup = true;
-    public bool autoPickupOnApproach = true;
-    public float autoPickupRadius = 0.6f;
+    // ── Inspector ─────────────────────────────────────────────────────────────
 
-    private TorchLight torchLight;
-    private FireSimulation fireSimulation;
-    private Collider torchCollider;
-    private bool isCarried;
-    private Vector3 originalScale;
-    private Transform lastParent;
-    private float currentFuel;
+    [Header("State")]
+    [SerializeField] private bool startLit       = true;
+    [SerializeField] private float maxFuel       = 120f;
+    [SerializeField] private float burnRate      = 1f;
 
-    public bool IsLit => torchLight != null && torchLight.IsLit;
-    public float FuelPercent => maxFuel <= 0f ? 0f : currentFuel / maxFuel;
+    [Header("Auto pickup")]
+    [Tooltip("Player walks into this radius and automatically picks it up.")]
+    [SerializeField] private float autoPickupRadius = 0.8f;
+
+    // ── Events ────────────────────────────────────────────────────────────────
+
+    public event System.Action<bool>  OnLitChanged;    // (isLit)
+    public event System.Action<float> OnFuelChanged;   // (fuelPercent 0–1)
+
+    // ── Public State ──────────────────────────────────────────────────────────
+
+    public bool  IsLit       => _lit;
+    public float FuelPercent => maxFuel > 0f ? _fuel / maxFuel : 0f;
+    public bool  IsCarried   => _carried;
+
+    // ── Private ───────────────────────────────────────────────────────────────
+
+    private TorchLight      _torchLight;
+    private FireSimulation  _fire;
+    private Collider        _col;
+    private Rigidbody       _rb;
+
+    private bool  _lit;
+    private float _fuel;
+    private bool  _carried;
+
+    private Vector3 _originalScale;
+
+    // ── Unity Lifecycle ───────────────────────────────────────────────────────
 
     private void Awake()
     {
-        torchLight = GetComponent<TorchLight>();
-        fireSimulation = GetComponent<FireSimulation>();
-        if (fireSimulation == null)
-        {
-            fireSimulation = gameObject.AddComponent<FireSimulation>();
-        }
+        _torchLight    = GetComponent<TorchLight>();
+        _fire          = GetComponent<FireSimulation>();
+        _col           = GetComponent<Collider>();
+        _rb            = GetComponent<Rigidbody>();
+        _originalScale = transform.localScale;
+        _fuel          = maxFuel;
 
-        torchCollider = GetComponent<Collider>();
-        torchCollider.isTrigger = true;
-
-        originalScale = transform.localScale;
-
-        currentFuel = maxFuel;
-        if (torchLight != null)
-        {
-            torchLight.SetLit(startLit);
-        }
-
-        if (fireSimulation != null)
-        {
-            if (startLit)
-                fireSimulation.ResumeFire();
-            else
-                fireSimulation.PauseFire();
-        }
+        _col.isTrigger = true;
+        SetLit(startLit);
     }
 
     private void Update()
     {
-        if (IsLit)
-        {
-            BurnFuel();
-        }
+        if (_lit) BurnFuel();
 
-        if (Input.GetKeyDown(KeyCode.E))
-        {
-            TryPickup();
-        }
-
-        // Auto-pickup when the player walks through the torch
-        if (!isCarried && autoPickupOnApproach)
-        {
-            Collider[] hits = Physics.OverlapSphere(transform.position, autoPickupRadius);
-            foreach (Collider hit in hits)
-            {
-                PlayerController player = hit.GetComponent<PlayerController>();
-                if (player != null)
-                {
-                    player.PickupTorch(gameObject);
-                    return;
-                }
-            }
-        }
-
-        if (isCarried && Input.GetKeyDown(KeyCode.F))
-        {
-            if (IsLit)
-                Extinguish();
-            else
-                Ignite();
-        }
+        // Auto-pickup: any PlayerController within radius grabs this torch.
+        if (!_carried && autoPickupRadius > 0f)
+            CheckAutoPickup();
     }
 
-    private void BurnFuel()
+    // ── Attach / Detach ───────────────────────────────────────────────────────
+
+    public void AttachTo(Transform holder)
     {
-        if (currentFuel <= 0f)
-        {
-            Extinguish();
-            return;
-        }
+        _carried = true;
 
-        currentFuel -= burnRate * Time.deltaTime;
-        currentFuel = Mathf.Max(0f, currentFuel);
+        if (_rb != null) _rb.isKinematic = true;
+        _col.enabled = false;
 
-        if (currentFuel <= 0f)
-            Extinguish();
-    }
-
-    private void TryPickup()
-    {
-        if (isCarried)
-            return;
-
-        Collider[] hits = Physics.OverlapSphere(transform.position, pickupRange);
-        foreach (Collider hit in hits)
-        {
-            PlayerController player = hit.GetComponent<PlayerController>();
-            if (player != null)
-            {
-                player.PickupTorch(gameObject);
-                return;
-            }
-        }
-    }
-
-    public void PickUp(Transform parent)
-    {
-        if (isCarried)
-            return;
-
-        isCarried = true;
-        lastParent = parent;
-        transform.SetParent(parent);
-        // Hold the torch upright in the player's hand with a slight forward tilt so the flame is visible
+        transform.SetParent(holder, false);
         transform.localPosition = new Vector3(0.15f, -0.18f, 0.4f);
         transform.localRotation = Quaternion.Euler(20f, 0f, 0f);
-        // Scale down when carried so it doesn't dominate the view
-        transform.localScale = originalScale * 0.45f;
-        torchCollider.enabled = false;
+        transform.localScale    = _originalScale * 0.45f;
 
-        if (autoIgniteOnPickup && !IsLit)
-            Ignite();
+        // Auto-ignite when picked up if there is fuel.
+        if (!_lit && _fuel > 0f) SetLit(true);
     }
 
-    public void Drop()
+    public void Detach()
     {
-        if (!isCarried)
-            return;
+        _carried = false;
 
-        isCarried = false;
-        // Place in front of the previous holder when dropping
-        Transform parent = lastParent;
+        Transform prev = transform.parent;
         transform.SetParent(null);
-        if (parent != null)
-        {
-            transform.position = parent.position + parent.forward * 0.6f + parent.up * -0.2f;
-        }
-        // Restore original scale
-        transform.localScale = originalScale;
-        torchCollider.enabled = true;
+
+        // Drop slightly in front of where the holder was.
+        if (prev != null)
+            transform.position = prev.position + prev.forward * 0.6f;
+
+        transform.localScale = _originalScale;
+
+        _col.enabled = true;
+        if (_rb != null) _rb.isKinematic = false;
+    }
+
+    // ── Lit State ─────────────────────────────────────────────────────────────
+
+    public void ToggleLit()
+    {
+        if (!_lit && _fuel <= 0f) return; // Can't relight with no fuel.
+        SetLit(!_lit);
     }
 
     public void Ignite()
     {
-        if (currentFuel <= 0f)
-            return;
-
-        if (torchLight != null)
-            torchLight.SetLit(true);
-
-        if (fireSimulation != null)
-            fireSimulation.ResumeFire();
+        if (_fuel > 0f) SetLit(true);
     }
 
-    public void Extinguish()
-    {
-        if (torchLight != null)
-            torchLight.SetLit(false);
-
-        if (fireSimulation != null)
-            fireSimulation.PauseFire();
-    }
+    public void Extinguish()   => SetLit(false);
 
     public void RefillFuel(float amount)
     {
-        currentFuel = Mathf.Clamp(currentFuel + amount, 0f, maxFuel);
-        if (currentFuel > 0f && startLit)
-            Ignite();
+        _fuel = Mathf.Clamp(_fuel + amount, 0f, maxFuel);
+        OnFuelChanged?.Invoke(FuelPercent);
     }
 
+    // ── Private ───────────────────────────────────────────────────────────────
+
+    private void SetLit(bool lit)
+    {
+        _lit = lit;
+        _torchLight?.SetLit(lit);
+
+        if (_fire != null)
+        {
+            if (lit) _fire.ResumeFire();
+            else     _fire.PauseFire();
+        }
+
+        OnLitChanged?.Invoke(lit);
+    }
+
+    private void BurnFuel()
+    {
+        _fuel -= burnRate * Time.deltaTime;
+        _fuel  = Mathf.Max(0f, _fuel);
+        OnFuelChanged?.Invoke(FuelPercent);
+
+        if (_fuel <= 0f) SetLit(false);
+    }
+
+    private void CheckAutoPickup()
+    {
+        Collider[] hits = Physics.OverlapSphere(transform.position, autoPickupRadius);
+        foreach (var hit in hits)
+        {
+            PlayerController pc = hit.GetComponent<PlayerController>();
+            if (pc != null)
+            {
+                pc.PickupTorch(this);
+                return;
+            }
+        }
+    }
 }

@@ -1,32 +1,30 @@
 using UnityEngine;
 
+/// <summary>
+/// Applies a custom gravity direction to a Rigidbody.
+/// Disable Unity's built-in gravity (useGravity = false) on the same object.
+/// </summary>
 [RequireComponent(typeof(Rigidbody))]
 public class GravityAffectedObject : MonoBehaviour
 {
-    public Vector3 gravityDirection = Physics.gravity.normalized;
-    public float gravityStrength = 9.81f;
+    [SerializeField] private Vector3 gravityDirection = Vector3.down;
+    [SerializeField] private float   gravityStrength  = 9.81f;
 
-    private Rigidbody rb;
+    private Rigidbody _rb;
 
     private void Awake()
     {
-        rb = GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            rb.useGravity = false;
-        }
+        _rb            = GetComponent<Rigidbody>();
+        _rb.useGravity = false;
     }
 
     private void FixedUpdate()
     {
-        if (rb == null)
-            return;
-
-        rb.AddForce(gravityDirection.normalized * gravityStrength * rb.mass, ForceMode.Force);
+        _rb.AddForce(gravityDirection.normalized * gravityStrength * _rb.mass, ForceMode.Force);
     }
 
-    public void SetGravity(Vector3 newGravity)
+    public void SetGravity(Vector3 direction)
     {
-        gravityDirection = newGravity.normalized;
+        gravityDirection = direction.normalized;
     }
 }

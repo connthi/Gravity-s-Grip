@@ -1,54 +1,60 @@
 using UnityEngine;
 
+/// <summary>
+/// Opens a PuzzleDoor when a lit torch enters this trigger zone.
+/// Decoupled: checks TorchPickup on the collider OR on the PlayerController.
+/// SetDoor() and SetObjective() are called by LevelBuilder at construction time.
+/// </summary>
 [RequireComponent(typeof(Collider))]
 public class DoorSwitch : MonoBehaviour
 {
-    public PuzzleDoor targetDoor;
-    public PuzzleObjective objective;
-    public string requiredTag = "Torch";
-    public bool requireLitTorch = true;
-    public bool allowPlayerCarry = true;
+    [SerializeField] private PuzzleDoor      targetDoor;
+    [SerializeField] private PuzzleObjective objective;
+    [SerializeField] private bool            requireLitTorch = true;
+
+    private bool _triggered;
 
     private void Reset()
     {
-        Collider collider = GetComponent<Collider>();
-        collider.isTrigger = true;
+        GetComponent<Collider>().isTrigger = true;
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        if (targetDoor == null)
-            return;
+        if (_triggered || targetDoor == null) return;
 
-        if (IsValidActivation(other))
-        {
-            targetDoor.OpenDoor();
-            if (objective != null)
-                objective.Complete();
-        }
+        TorchPickup torch = FindTorch(other);
+        if (torch == null) return;
+        if (requireLitTorch && !torch.IsLit) return;
+
+        _triggered = true;
+        targetDoor.Open();
+        objective?.Complete();
     }
 
-    private bool IsValidActivation(Collider other)
+    // -- Shims for LevelBuilder -----------------------------------------------
+
+    public void SetDoor(PuzzleDoor door)           => targetDoor = door;
+    public void SetObjective(PuzzleObjective obj)  => objective  = obj;
+
+    // -- Private ---------------------------------------------------------------
+
+    private static TorchPickup FindTorch(Collider other)
     {
-        TorchPickup torch = GetTorchFromCollider(other);
-        if (torch != null)
-            return !requireLitTorch || torch.IsLit;
+        TorchPickup direct = other.GetComponentInParent<TorchPickup>();
+        if (direct != null) return direct;
 
-        if (allowPlayerCarry)
-        {
-            PlayerController player = other.GetComponent<PlayerController>();
-            if (player != null && player.HasTorch())
-            {
-                TorchPickup carried = player.GetCarriedTorch();
-                return carried != null && (!requireLitTorch || carried.IsLit);
-            }
-        }
-
-        return false;
+        PlayerController player = other.GetComponent<PlayerController>();
+        return player?.CarriedTorch;
     }
 
-    private TorchPickup GetTorchFromCollider(Collider other)
+#if UNITY_EDITOR
+    private void OnDrawGizmosSelected()
     {
-        return other.GetComponent<TorchPickup>();
+        Gizmos.color = _triggered
+            ? new Color(0f, 1f, 0f, 0.3f)
+            : new Color(1f, 0.5f, 0f, 0.3f);
+        Gizmos.DrawCube(transform.position, transform.lossyScale);
     }
+#endif
 }

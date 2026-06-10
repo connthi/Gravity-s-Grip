@@ -1,80 +1,64 @@
 using UnityEngine;
 
+/// <summary>
+/// Lets the player grab and throw objects tagged "Throwable".
+/// Attach alongside PlayerController on the Player GameObject.
+/// </summary>
 public class PlayerGrabber : MonoBehaviour
 {
-    public Camera playerCamera;
-    public Transform holdPoint;
-    public float grabRange = 3f;
-    public float throwStrength = 8f;
-    public LayerMask grabbableLayer;
-    public string grabbableTag = "Throwable";
+    [SerializeField] private float grabRange    = 3f;
+    [SerializeField] private float throwStrength = 8f;
 
-    private ThrowableObject heldObject;
+    private Camera           _cam;
+    private Transform        _holdPoint;
+    private ThrowableObject  _held;
 
     private void Start()
     {
-        if (playerCamera == null)
-        {
-            playerCamera = Camera.main;
-        }
+        _cam = Camera.main ?? FindAnyObjectByType<Camera>();
+
+        var go = new GameObject("GrabHoldPoint");
+        go.transform.SetParent(_cam.transform, false);
+        go.transform.localPosition = new Vector3(0f, 0f, grabRange * 0.6f);
+        _holdPoint = go.transform;
     }
 
     private void Update()
     {
+        if (GameManager.Instance != null && GameManager.Instance.State != GameManager.GameState.Playing)
+            return;
+
         if (Input.GetKeyDown(KeyCode.E))
         {
-            if (heldObject != null)
-            {
-                Drop();
-            }
-            else
-            {
-                TryGrab();
-            }
+            if (_held != null) Release();
+            else               TryGrab();
         }
 
-        if (heldObject != null && Input.GetMouseButtonDown(0))
-        {
+        if (_held != null && Input.GetMouseButtonDown(0))
             Throw();
-        }
     }
 
     private void TryGrab()
     {
-        if (playerCamera == null || holdPoint == null)
-            return;
+        Ray ray = new Ray(_cam.transform.position, _cam.transform.forward);
+        if (!Physics.Raycast(ray, out RaycastHit hit, grabRange)) return;
 
-        Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
-        if (Physics.Raycast(ray, out RaycastHit hit, grabRange, grabbableLayer))
-        {
-            if (hit.collider.CompareTag(grabbableTag))
-            {
-                ThrowableObject throwable = hit.collider.GetComponent<ThrowableObject>();
-                if (throwable != null)
-                {
-                    heldObject = throwable;
-                    heldObject.PickUp(holdPoint);
-                }
-            }
-        }
+        ThrowableObject obj = hit.collider.GetComponentInParent<ThrowableObject>();
+        if (obj == null) return;
+
+        _held = obj;
+        _held.PickUp(_holdPoint);
     }
 
-    private void Drop()
+    private void Release()
     {
-        if (heldObject == null)
-            return;
-
-        heldObject.Drop(Vector3.zero);
-        heldObject = null;
+        _held.Drop(Vector3.zero);
+        _held = null;
     }
 
     private void Throw()
     {
-        if (heldObject == null)
-            return;
-
-        Vector3 force = playerCamera.transform.forward * throwStrength;
-        heldObject.Drop(force);
-        heldObject = null;
+        _held.Drop(_cam.transform.forward * throwStrength);
+        _held = null;
     }
 }

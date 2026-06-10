@@ -1,30 +1,56 @@
 using UnityEngine;
 
+/// <summary>
+/// Slides between a closed and open transform.
+/// Stops updating once fully open to avoid wasted per-frame work.
+/// SetTargets() is called by LevelBuilder at construction time.
+/// </summary>
 public class PuzzleDoor : MonoBehaviour
 {
-    public Transform closedPosition;
-    public Transform openPosition;
-    public float openSpeed = 2f;
+    [SerializeField] private Transform closedPosition;
+    [SerializeField] private Transform openPosition;
+    [SerializeField] private float     openSpeed = 2.5f;
+    [SerializeField] private bool      startOpen = false;
 
-    private bool isOpen;
+    private enum DoorState { Closed, Opening, Open }
+    private DoorState _state;
 
-    void Update()
+    private void Start()
     {
-        if (closedPosition == null || openPosition == null)
-            return;
-
-        Transform target = isOpen ? openPosition : closedPosition;
-        transform.position = Vector3.MoveTowards(transform.position, target.position, openSpeed * Time.deltaTime);
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, target.rotation, openSpeed * 100f * Time.deltaTime);
+        _state = startOpen ? DoorState.Open : DoorState.Closed;
+        if (closedPosition != null && !startOpen)
+        {
+            transform.position = closedPosition.position;
+            transform.rotation = closedPosition.rotation;
+        }
     }
 
-    public void OpenDoor()
+    private void Update()
     {
-        isOpen = true;
+        if (_state != DoorState.Opening || openPosition == null) return;
+
+        transform.position = Vector3.MoveTowards(
+            transform.position, openPosition.position, openSpeed * Time.deltaTime);
+        transform.rotation = Quaternion.RotateTowards(
+            transform.rotation, openPosition.rotation, openSpeed * 90f * Time.deltaTime);
+
+        if (Vector3.Distance(transform.position, openPosition.position) < 0.01f)
+        {
+            transform.position = openPosition.position;
+            transform.rotation = openPosition.rotation;
+            _state = DoorState.Open;
+        }
     }
 
-    public void CloseDoor()
+    // -- Public API -----------------------------------------------------------
+
+    public void Open()  { if (_state != DoorState.Open) _state = DoorState.Opening; }
+    public void Close() { _state = DoorState.Closed; }
+
+    /// Called by LevelBuilder after instantiation.
+    public void SetTargets(Transform closed, Transform open)
     {
-        isOpen = false;
+        closedPosition = closed;
+        openPosition   = open;
     }
 }
