@@ -340,40 +340,39 @@ public class LevelBuilder : MonoBehaviour
     {
         var canvas = new GameObject("HUD_Canvas").AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        var scaler = canvas.gameObject.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        // ConstantPixelSize means font sizes are literal screen pixels — no scaling surprises.
+        canvas.gameObject.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
         canvas.gameObject.AddComponent<UnityEngine.UI.GraphicRaycaster>();
 
         // ── Objective panel (top-left) ────────────────────────────────────────
-        var hud = MakePanel(canvas.transform, "HUD_Panel",
-            new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -16f),
-            new Vector2(420f, 160f), new Color(0f, 0f, 0f, 0.55f));
+        // Stretch full width so text never clips; background limited by alpha panel behind it.
+        var hud = MakeCornerPanel(canvas.transform, "HUD_Panel",
+            new Vector2(0f, 1f), new Vector2(20f, -20f), new Vector2(380f, 200f),
+            new Color(0f, 0f, 0f, 0.6f));
 
-        var titleLabel = MakeLabel(hud.transform, "OBJECTIVE",        new Vector2(14f, -12f),  11, new Color(1f, 0.75f, 0.2f));
-        var objTitle   = MakeText (hud.transform, "—",                new Vector2(14f, -30f),  18);
-        var objDesc    = MakeText (hud.transform, "",                 new Vector2(14f, -56f),  14);
-        objDesc.color  = new Color(0.85f, 0.85f, 0.85f);
-        var progress   = MakeText (hud.transform, $"Puzzles: 0/{puzzlesToWin}", new Vector2(14f, -100f), 14);
-        progress.color = new Color(0.7f, 1f, 0.7f);
-        var torchStatus= MakeText (hud.transform, "Torch: none",      new Vector2(14f, -122f), 14);
-        torchStatus.color = new Color(1f, 0.85f, 0.5f);
-        var hint       = MakeText (hud.transform, "",                 new Vector2(14f, -144f), 13);
-        hint.color     = new Color(0.8f, 0.8f, 1f);
+        var objTitle    = MakeLeftText(hud.transform, "—",                        8,  24, Color.white);
+        var objDesc     = MakeLeftText(hud.transform, "",                         40, 17, new Color(0.85f, 0.85f, 0.85f));
+        var progress    = MakeLeftText(hud.transform, $"Puzzles: 0/{puzzlesToWin}", 100, 17, new Color(0.55f, 1f, 0.55f));
+        var torchStatus = MakeLeftText(hud.transform, "Torch: none",              130, 17, new Color(1f, 0.85f, 0.45f));
+        var hint        = MakeLeftText(hud.transform, "",                         160, 15, new Color(0.7f, 0.8f, 1f));
 
-        // ── Controls reminder (bottom-left, semi-transparent) ─────────────────
-        var controls = MakePanel(canvas.transform, "Controls_Panel",
-            new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(16f, 16f),
-            new Vector2(260f, 130f), new Color(0f, 0f, 0f, 0.45f));
-        MakeLabel(controls.transform, "CONTROLS",              new Vector2(10f, -10f), 10, new Color(1f, 0.75f, 0.2f));
-        MakeLabel(controls.transform, "WASD — Move",           new Vector2(10f, -26f), 12, Color.white);
-        MakeLabel(controls.transform, "Mouse — Look",          new Vector2(10f, -42f), 12, Color.white);
-        MakeLabel(controls.transform, "Space — Jump",          new Vector2(10f, -58f), 12, Color.white);
-        MakeLabel(controls.transform, "E — Pick up torch",     new Vector2(10f, -74f), 12, Color.white);
-        MakeLabel(controls.transform, "Q — Drop   F — Toggle", new Vector2(10f, -90f), 12, Color.white);
-        MakeLabel(controls.transform, "LMB — Throw   Esc — Pause", new Vector2(10f, -106f), 12, Color.white);
+        // Thin gold separator under title
+        MakeSeparator(hud.transform, 32f);
 
-        // ── Crosshair (centre) ────────────────────────────────────────────────
+        // ── Controls reminder (bottom-left) ───────────────────────────────────
+        var ctrl = MakeCornerPanel(canvas.transform, "Controls_Panel",
+            new Vector2(0f, 0f), new Vector2(20f, 20f), new Vector2(310f, 175f),
+            new Color(0f, 0f, 0f, 0.55f));
+        MakeLeftText(ctrl.transform, "CONTROLS",               8,  13, new Color(1f, 0.75f, 0.2f));
+        MakeSeparator(ctrl.transform, 26f);
+        MakeLeftText(ctrl.transform, "WASD  —  Move",           32, 15, Color.white);
+        MakeLeftText(ctrl.transform, "Mouse  —  Look",          56, 15, Color.white);
+        MakeLeftText(ctrl.transform, "Space  —  Jump",          80, 15, Color.white);
+        MakeLeftText(ctrl.transform, "E  —  Pick up torch",    104, 15, Color.white);
+        MakeLeftText(ctrl.transform, "Q  —  Drop    F  —  Toggle", 128, 15, Color.white);
+        MakeLeftText(ctrl.transform, "LMB  —  Throw    Esc  —  Pause", 152, 15, Color.white);
+
+        // ── Crosshair ─────────────────────────────────────────────────────────
         BuildCrosshair(canvas.transform);
 
         var ui = hud.AddComponent<UIManager>();
@@ -382,18 +381,77 @@ public class LevelBuilder : MonoBehaviour
             BuildPausePanel(canvas.transform));
     }
 
+    // Creates a panel anchored to a corner. anchor = (0,1) top-left, (0,0) bottom-left.
+    // offset is the inset from that corner in screen pixels (positive = inward).
+    private static GameObject MakeCornerPanel(Transform parent, string name,
+        Vector2 anchor, Vector2 offset, Vector2 size, Color bg)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = rt.pivot = anchor;
+        // For bottom-left (0,0) offset.y is positive upward; flip it so caller always passes positive.
+        float signY = (anchor.y < 0.5f) ? 1f : -1f;
+        rt.anchoredPosition = new Vector2(offset.x, offset.y * signY);
+        rt.sizeDelta = size;
+        go.AddComponent<Image>().color = bg;
+        return go;
+    }
+
+    // Left-aligned text inside a top-left-anchored panel.
+    // topOffset = pixels from the top of the parent panel.
+    private static Text MakeLeftText(Transform parent, string content, float topOffset, int fontSize, Color color)
+    {
+        var go = new GameObject("T_" + content.Substring(0, Mathf.Min(14, content.Length)));
+        go.transform.SetParent(parent, false);
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);   // stretch full width of parent
+        rt.pivot     = new Vector2(0f, 1f);
+        rt.offsetMin = new Vector2(10f, 0f);  // 10px left margin
+        rt.offsetMax = new Vector2(-10f, 0f); // 10px right margin
+        rt.anchoredPosition = new Vector2(0f, -topOffset);
+        rt.sizeDelta = new Vector2(0f, fontSize + 8f);  // height = font size + breathing room
+
+        var t = go.AddComponent<Text>();
+        t.text   = content;
+        t.fontSize = fontSize;
+        t.alignment = TextAnchor.UpperLeft;
+        t.color  = color;
+        t.font   = Font.CreateDynamicFontFromOSFont("Arial", fontSize);
+        t.horizontalOverflow = HorizontalWrapMode.Overflow;
+        t.verticalOverflow   = VerticalWrapMode.Overflow;
+        t.raycastTarget = false;
+        go.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.8f);
+        return t;
+    }
+
+    private static void MakeSeparator(Transform parent, float topOffset)
+    {
+        var go = new GameObject("Sep");
+        go.transform.SetParent(parent, false);
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot     = new Vector2(0f, 1f);
+        rt.offsetMin = new Vector2(10f, 0f);
+        rt.offsetMax = new Vector2(-10f, 0f);
+        rt.anchoredPosition = new Vector2(0f, -topOffset);
+        rt.sizeDelta = new Vector2(0f, 1f);
+        go.AddComponent<Image>().color = new Color(1f, 0.75f, 0.2f, 0.6f);
+    }
+
     private static void BuildCrosshair(Transform canvasParent)
     {
-        // Thin white plus made from two Image rectangles.
         var go = new GameObject("Crosshair");
         go.transform.SetParent(canvasParent, false);
-        var root = go.AddComponent<RectTransform>();
-        root.anchorMin = root.anchorMax = root.pivot = new Vector2(0.5f, 0.5f);
-        root.anchoredPosition = Vector2.zero;
-        root.sizeDelta = Vector2.zero;
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = Vector2.zero;
+        rt.sizeDelta = new Vector2(24f, 24f);
 
-        MakeCrosshairBar(go.transform, new Vector2(18f, 2f));
-        MakeCrosshairBar(go.transform, new Vector2(2f, 18f));
+        MakeCrosshairBar(go.transform, new Vector2(24f, 3f));  // horizontal
+        MakeCrosshairBar(go.transform, new Vector2(3f, 24f));  // vertical
     }
 
     private static void MakeCrosshairBar(Transform parent, Vector2 size)
@@ -404,21 +462,22 @@ public class LevelBuilder : MonoBehaviour
         rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
         rt.anchoredPosition = Vector2.zero;
         rt.sizeDelta = size;
-        var img = bar.AddComponent<Image>();
-        img.color = new Color(1f, 1f, 1f, 0.85f);
+        bar.AddComponent<Image>().color = new Color(1f, 1f, 1f, 0.9f);
+        bar.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.6f);
     }
 
     private static GameObject BuildWinPanel(Transform canvasParent)
     {
-        var win = MakePanel(canvasParent, "WinPanel",
-            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-            new Vector2(640f, 260f), new Color(0f, 0f, 0f, 0.82f));
+        var win = new GameObject("WinPanel");
+        win.transform.SetParent(canvasParent, false);
+        var rt = win.AddComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = rt.offsetMax = Vector2.zero;
+        win.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.75f);
 
-        var title = MakeLabel(win.transform, "YOU ESCAPED!", Vector2.zero, 42, new Color(1f, 0.85f, 0.1f));
-        CentreRect(title.GetComponent<RectTransform>(), new Vector2(0f, 50f));
-
-        var sub = MakeLabel(win.transform, "Press Esc to return to menu", Vector2.zero, 18, new Color(0.75f, 0.75f, 0.75f));
-        CentreRect(sub.GetComponent<RectTransform>(), new Vector2(0f, 0f));
+        var title = MakeCentredText(win.transform, "YOU ESCAPED!", 60, new Color(1f, 0.85f, 0.1f), -60f);
+        var sub   = MakeCentredText(win.transform, "Press Esc to quit", 24, new Color(0.8f, 0.8f, 0.8f), 20f);
 
         win.SetActive(false);
         return win;
@@ -426,33 +485,47 @@ public class LevelBuilder : MonoBehaviour
 
     private static GameObject BuildPausePanel(Transform canvasParent)
     {
-        var pause = MakePanel(canvasParent, "PausePanel",
-            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-            new Vector2(480f, 300f), new Color(0f, 0f, 0f, 0.82f));
+        var pause = new GameObject("PausePanel");
+        pause.transform.SetParent(canvasParent, false);
+        var rt = pause.AddComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = rt.offsetMax = Vector2.zero;
+        pause.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.72f);
 
-        var title = MakeLabel(pause.transform, "PAUSED", Vector2.zero, 40, Color.white);
-        CentreRect(title.GetComponent<RectTransform>(), new Vector2(0f, 100f));
-
-        MakeLabel(pause.transform, "WASD — Move",           Vector2.zero, 16, new Color(0.85f, 0.85f, 0.85f))
-            .GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 50f);
-        MakeLabel(pause.transform, "E — Pick up torch",     Vector2.zero, 16, new Color(0.85f, 0.85f, 0.85f))
-            .GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 24f);
-        MakeLabel(pause.transform, "Q — Drop   F — Toggle torch", Vector2.zero, 16, new Color(0.85f, 0.85f, 0.85f))
-            .GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -2f);
-        MakeLabel(pause.transform, "LMB — Throw   Space — Jump", Vector2.zero, 16, new Color(0.85f, 0.85f, 0.85f))
-            .GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -28f);
-
-        var resume = MakeLabel(pause.transform, "Press Esc to resume", Vector2.zero, 20, new Color(1f, 0.85f, 0.2f));
-        CentreRect(resume.GetComponent<RectTransform>(), new Vector2(0f, -100f));
+        MakeCentredText(pause.transform, "PAUSED",              52, Color.white,                    -160f);
+        MakeCentredText(pause.transform, "WASD  —  Move",        22, new Color(0.85f, 0.85f, 0.85f), -80f);
+        MakeCentredText(pause.transform, "Mouse  —  Look",       22, new Color(0.85f, 0.85f, 0.85f), -44f);
+        MakeCentredText(pause.transform, "Space  —  Jump",       22, new Color(0.85f, 0.85f, 0.85f),  -8f);
+        MakeCentredText(pause.transform, "E  —  Pick up    Q  —  Drop    F  —  Toggle", 22, new Color(0.85f, 0.85f, 0.85f), 28f);
+        MakeCentredText(pause.transform, "LMB  —  Throw",        22, new Color(0.85f, 0.85f, 0.85f), 64f);
+        MakeCentredText(pause.transform, "Press Esc to resume", 26, new Color(1f, 0.85f, 0.2f),    140f);
 
         pause.SetActive(false);
         return pause;
     }
 
-    private static void CentreRect(RectTransform rt, Vector2 offset)
+    // Centred text on a full-screen panel. yOffset: negative = above centre, positive = below.
+    private static Text MakeCentredText(Transform parent, string content, int fontSize, Color color, float yOffset)
     {
+        var go = new GameObject("T_" + content.Substring(0, Mathf.Min(14, content.Length)));
+        go.transform.SetParent(parent, false);
+        var rt = go.AddComponent<RectTransform>();
         rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = offset;
+        rt.anchoredPosition = new Vector2(0f, -yOffset);
+        rt.sizeDelta = new Vector2(900f, fontSize + 12f);
+
+        var t = go.AddComponent<Text>();
+        t.text      = content;
+        t.fontSize  = fontSize;
+        t.alignment = TextAnchor.MiddleCenter;
+        t.color     = color;
+        t.font      = Font.CreateDynamicFontFromOSFont("Arial", fontSize);
+        t.horizontalOverflow = HorizontalWrapMode.Overflow;
+        t.verticalOverflow   = VerticalWrapMode.Overflow;
+        t.raycastTarget = false;
+        go.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.9f);
+        return t;
     }
 
     private static GameObject MakePanel(Transform parent, string panelName,
@@ -460,52 +533,13 @@ public class LevelBuilder : MonoBehaviour
     {
         var go = new GameObject(panelName);
         go.transform.SetParent(parent, false);
-        var rt          = go.AddComponent<RectTransform>();
-        rt.anchorMin    = anchorMin;
-        rt.anchorMax    = anchorMax;
-        rt.pivot        = anchorMin;
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = anchorMin;
+        rt.anchorMax = anchorMax;
+        rt.pivot     = anchorMin;
         rt.anchoredPosition = anchoredPos;
-        rt.sizeDelta    = size;
-        var img         = go.AddComponent<Image>();
-        img.color       = bgColor;
+        rt.sizeDelta = size;
+        go.AddComponent<Image>().color = bgColor;
         return go;
-    }
-
-    private static Text MakeText(Transform parent, string content, Vector2 pos, int size)
-    {
-        var t            = MakeLabel(parent, content, pos, size, Color.white);
-        var rt           = t.GetComponent<RectTransform>();
-        rt.anchorMin     = new Vector2(0f, 1f);
-        rt.anchorMax     = new Vector2(0f, 1f);
-        rt.pivot         = new Vector2(0f, 1f);
-        rt.anchoredPosition = pos;
-        rt.sizeDelta     = new Vector2(400f, 32f);
-        return t;
-    }
-
-    private static Text MakeLabel(Transform parent, string content, Vector2 pos, int size, Color color)
-    {
-        var go = new GameObject("Text_" + content.Substring(0, Mathf.Min(16, content.Length)));
-        go.transform.SetParent(parent, false);
-        go.transform.SetAsLastSibling();
-
-        var rt              = go.AddComponent<RectTransform>();
-        rt.anchorMin        = new Vector2(0f, 1f);
-        rt.anchorMax        = new Vector2(0f, 1f);
-        rt.pivot            = new Vector2(0f, 1f);
-        rt.anchoredPosition = pos;
-        rt.sizeDelta        = new Vector2(440f, 28f);
-
-        var t                = go.AddComponent<Text>();
-        t.text               = content;
-        t.fontSize           = size;
-        t.alignment          = TextAnchor.UpperLeft;
-        t.color              = color;
-        t.font               = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf")
-                            ?? Font.CreateDynamicFontFromOSFont("Arial", size);
-        t.horizontalOverflow = HorizontalWrapMode.Wrap;
-        t.verticalOverflow   = VerticalWrapMode.Truncate;
-        t.raycastTarget      = false;
-        return t;
     }
 }
