@@ -1,28 +1,19 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// Owns all HUD and screen-overlay display.
-/// Subscribes to events from PlayerController and ObjectiveTracker
-/// instead of being polled every frame.
-/// Inject() is called by LevelBuilder to wire up runtime-built UI elements.
-/// </summary>
 public class UIManager : MonoBehaviour
 {
     public static UIManager Instance { get; private set; }
 
-    // -- Inspector (set in Editor or via Inject()) ----------------------------
-
-    [SerializeField] private GameObject hudPanel;
-    [SerializeField] private Text objectiveTitleText;
-    [SerializeField] private Text objectiveDescText;
-    [SerializeField] private Text progressText;
-    [SerializeField] private Text torchStatusText;
-    [SerializeField] private Text hintText;
-    [SerializeField] private GameObject winPanel;
-    [SerializeField] private GameObject pausePanel;
-
-    // -- Lifecycle ------------------------------------------------------------
+    [SerializeField] private GameObject  hudPanel;
+    [SerializeField] private TMP_Text    objectiveTitleText;
+    [SerializeField] private TMP_Text    objectiveDescText;
+    [SerializeField] private TMP_Text    progressText;
+    [SerializeField] private TMP_Text    torchStatusText;
+    [SerializeField] private TMP_Text    hintText;
+    [SerializeField] private GameObject  winPanel;
+    [SerializeField] private GameObject  pausePanel;
 
     private void Awake()
     {
@@ -73,10 +64,9 @@ public class UIManager : MonoBehaviour
     }
 
     public void SetProgress(int completed, int required)
-        => SetText(progressText, $"Puzzles: {completed}/{required}");
+        => SetText(progressText, $"Puzzles: {completed} / {required}");
 
-    public void ShowHint(string hint)
-        => SetText(hintText, hint);
+    public void ShowHint(string hint) => SetText(hintText, hint);
 
     public void ShowWinScreen()
     {
@@ -84,14 +74,12 @@ public class UIManager : MonoBehaviour
         winPanel?.SetActive(true);
     }
 
-    public void ShowPauseScreen(bool show)
-        => pausePanel?.SetActive(show);
+    public void ShowPauseScreen(bool show) => pausePanel?.SetActive(show);
 
-    /// Called by LevelBuilder to wire up runtime-created UI elements.
     public void Inject(
         GameObject hud,
-        Text objTitle, Text objDesc,
-        Text progress, Text torchStatus, Text hint,
+        TMP_Text objTitle, TMP_Text objDesc,
+        TMP_Text progress, TMP_Text torchStatus, TMP_Text hint,
         GameObject win, GameObject pause)
     {
         hudPanel           = hud;
@@ -104,8 +92,6 @@ public class UIManager : MonoBehaviour
         pausePanel         = pause;
     }
 
-    // -- Event Handlers -------------------------------------------------------
-
     private void OnGameStateChanged(GameManager.GameState state)
     {
         ShowPauseScreen(state == GameManager.GameState.Paused);
@@ -115,20 +101,17 @@ public class UIManager : MonoBehaviour
     private void OnTorchChanged(TorchPickup torch)
     {
         if (torch == null) { SetText(torchStatusText, "Torch: none"); return; }
-
         torch.OnLitChanged  += lit => UpdateTorchUI(lit, torch.FuelPercent);
         torch.OnFuelChanged += pct => UpdateTorchUI(torch.IsLit, pct);
         UpdateTorchUI(torch.IsLit, torch.FuelPercent);
     }
 
-    // -- Helpers --------------------------------------------------------------
-
     private void UpdateTorchUI(bool lit, float pct)
         => SetText(torchStatusText, lit
-            ? $"Torch: Lit ({Mathf.RoundToInt(pct * 100f)}%)"
+            ? $"Torch: Lit  {Mathf.RoundToInt(pct * 100f)}%"
             : "Torch: Unlit");
 
-    private static void SetText(Text t, string s)
+    private static void SetText(TMP_Text t, string s)
     {
         if (t != null) t.text = s;
     }

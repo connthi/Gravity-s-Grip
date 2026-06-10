@@ -22,8 +22,16 @@ public class GravityPanel : MonoBehaviour
 
     private void ApplyGravity(Collider other)
     {
-        if (affectPlayer)
-            other.GetComponent<PlayerController>()?.SetGravityDirection(gravityDirection.normalized);
+        var pc = affectPlayer ? other.GetComponentInParent<PlayerController>() : null;
+        if (pc != null)
+        {
+            pc.SetGravityDirection(gravityDirection.normalized);
+            // Sync every physics object in the scene to the same gravity as the player.
+            if (affectRigidbodies)
+                foreach (var gao in FindObjectsByType<GravityAffectedObject>())
+                    gao.SetGravity(gravityDirection.normalized);
+            return;
+        }
 
         if (affectRigidbodies)
             other.GetComponent<GravityAffectedObject>()?.SetGravity(gravityDirection.normalized);

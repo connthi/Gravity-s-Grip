@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 #if UNITY_EDITOR
@@ -25,6 +26,17 @@ public class LevelBuilder : MonoBehaviour
     [SerializeField] private Color doorColor      = new Color(0.08f, 0.08f, 0.08f);
     [SerializeField] private Color cubeColor      = new Color(0.28f, 0.16f, 0.08f);
     [SerializeField] private Color torchStandColor= new Color(0.12f, 0.08f, 0.04f);
+
+    // Decor palette — not inspector-exposed
+    private static readonly Color _wood   = new Color(0.30f, 0.18f, 0.08f);
+    private static readonly Color _dkWood = new Color(0.16f, 0.09f, 0.03f);
+    private static readonly Color _iron   = new Color(0.20f, 0.18f, 0.16f);
+    private static readonly Color _bone   = new Color(0.76f, 0.72f, 0.58f);
+    private static readonly Color _rubble = new Color(0.13f, 0.11f, 0.09f);
+    private static readonly Color _banner = new Color(0.44f, 0.05f, 0.05f);
+    private static readonly Color _moss   = new Color(0.12f, 0.26f, 0.09f);
+    private static readonly Color _candle = new Color(0.92f, 0.86f, 0.68f);
+    private static readonly Color _flame  = new Color(1.00f, 0.65f, 0.10f);
 
     [Header("Puzzle settings")]
     [SerializeField] private int puzzlesToWin = 1;
@@ -68,9 +80,7 @@ public class LevelBuilder : MonoBehaviour
         {
             var go      = new GameObject("ObjectiveTracker");
             var tracker = go.AddComponent<ObjectiveTracker>();
-            // We need to set requiredToWin via serialized field; use
-            // a helper shim since it's [SerializeField] private.
-            // Alternatively set it in the Inspector on this LevelBuilder.
+            tracker.SetRequiredToWin(puzzlesToWin);
         }
 
         // UIManager
@@ -101,6 +111,7 @@ public class LevelBuilder : MonoBehaviour
         CreateLighting(root.transform);
         CreateIntroRoom(root.transform);
         CreateGravityCubeRoom(root.transform);
+        CreateTreasureRoom(root.transform);
     }
 
     // ── Lighting ──────────────────────────────────────────────────────────────
@@ -125,29 +136,86 @@ public class LevelBuilder : MonoBehaviour
 
     private void CreateIntroRoom(Transform parent)
     {
-        const float W = 20f, D = 18f;
+        const float W = 20f, D = 22f;   // D unified with puzzle room so N/S walls align
         var room = NewRoom("IntroRoom", parent, Vector3.zero);
-        // East wall IS built here; the door opening punches through it visually via PuzzleDoor sliding up
-        BuildRoomShell(room, W, D);
+        BuildRoomShell(room, W, D, omitEast: true);
 
-        // Torch near spawn — auto-lights when player walks close (autoPickupRadius)
         CreateTorchStation(room, new Vector3(-8f, 0.45f, 0f), "StartTorch", lit: true);
 
-        // Platforms to explore
         CreatePlatform(room, new Vector3(-5f, 1.5f, -4f), new Vector3(3f, 0.3f, 3f), "Platform_A");
         CreatePlatform(room, new Vector3(2f,  2.2f,  4f), new Vector3(3f, 0.3f, 3f), "Platform_B");
         CreatePlatform(room, new Vector3(5f,  1.0f, -6f), new Vector3(3f, 0.3f, 3f), "Platform_C");
 
-        // Walk-through gravity volumes (columns the player walks into, not thin walls)
-        CreateGravityVolume(room, "GravVol_Right", new Vector3(-2f, wallHeight * 0.5f, 2f),
-            new Vector3(2.5f, wallHeight, 2.5f), Vector3.right);
-        CreateGravityVolume(room, "GravVol_Down",  new Vector3(3f,  wallHeight * 0.5f, -3f),
-            new Vector3(2.5f, wallHeight, 2.5f), Vector3.down);
+        // Gravity volumes — colour-coded: blue=right, yellow=up, purple=forward, green=down(reset)
+        CreateGravityVolume(room, "GravVol_Right",   new Vector3(-4f, 0f,  3f), Vector3.right);
+        CreateGravityVolume(room, "GravVol_Up",      new Vector3( 3f, 0f,  5f), Vector3.up);
+        CreateGravityVolume(room, "GravVol_Forward", new Vector3( 0f, 0f, -5f), Vector3.forward);
+        CreateGravityVolume(room, "GravVol_Down",    new Vector3( 4f, 0f, -2f), Vector3.down);
 
-        // Door to puzzle room — closed, opens when player walks into the trigger zone in front of it
-        var door = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f),
-            Quaternion.Euler(0f, 90f, 0f), "IntroDoor");
-        CreateProximitySwitch(room, new Vector3(W * 0.5f - 2f, 1.1f, 0f), door);
+        // Floor-level green reset tiles along every wall base.
+        // When stuck on a wall, walk toward the original floor (y≈0) to find these.
+        CreateGravityVolume(room, "Reset_NearW", new Vector3(-8.5f, 0f,  0f), Vector3.down);
+        CreateGravityVolume(room, "Reset_NearN", new Vector3(  0f,  0f,  9f), Vector3.down);
+        CreateGravityVolume(room, "Reset_NearS", new Vector3(  0f,  0f, -9f), Vector3.down);
+        // Invisible ceiling trigger — catches upward-gravity fall immediately.
+        MakeCeilingSafetyTrigger(room, W, D);
+
+        // East wall with doorway; door slides open on approach
+        var door = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f), Quaternion.identity, "IntroDoor");
+        BuildWallWithDoorway(room, "WallE", W * 0.5f, D, isXAxis: true);
+        CreateProximitySwitch(room, new Vector3(W * 0.5f - 2.5f, 1.1f, 0f), door);
+
+        DecorateIntroRoom(room, W, D);
+    }
+
+    // Generic: builds a wall (east or north) with a centred doorway opening split into 3 boxes.
+    // isXAxis=true → wall at x=wallPos facing Z; isXAxis=false → wall at z=wallPos facing X.
+    private void BuildWallWithDoorway(Transform parent, string prefix, float wallPos, float span, bool isXAxis)
+    {
+        const float doorwayW = 2.8f;
+        const float doorwayH = 2.6f;
+
+        float sideDepth = (span - doorwayW) * 0.5f;
+        float sideOff   = doorwayW * 0.5f + sideDepth * 0.5f;
+        float headerH   = wallHeight - doorwayH;
+
+        Vector3 LPos, RPos, HPos, LSize, RSize, HSize;
+        if (isXAxis)
+        {
+            LPos  = new Vector3(wallPos, wallHeight * 0.5f, -sideOff);
+            RPos  = new Vector3(wallPos, wallHeight * 0.5f,  sideOff);
+            HPos  = new Vector3(wallPos, doorwayH + headerH * 0.5f, 0f);
+            LSize = new Vector3(wallThickness, wallHeight, sideDepth);
+            RSize = LSize;
+            HSize = new Vector3(wallThickness, headerH, doorwayW + wallThickness);
+        }
+        else
+        {
+            LPos  = new Vector3(-sideOff, wallHeight * 0.5f, wallPos);
+            RPos  = new Vector3( sideOff, wallHeight * 0.5f, wallPos);
+            HPos  = new Vector3(0f, doorwayH + headerH * 0.5f, wallPos);
+            LSize = new Vector3(sideDepth, wallHeight, wallThickness);
+            RSize = LSize;
+            HSize = new Vector3(doorwayW + wallThickness, headerH, wallThickness);
+        }
+
+        CreateBox(parent, prefix + "_Left",   LPos, LSize, stoneColor);
+        CreateBox(parent, prefix + "_Right",  RPos, RSize, stoneColor);
+        CreateBox(parent, prefix + "_Header", HPos, HSize, stoneColor);
+    }
+
+    // Invisible trigger that spans the ceiling — resets gravity to down when the player
+    // hits the ceiling (catches the "gravity up" case where no floor tile is reachable).
+    private void MakeCeilingSafetyTrigger(Transform parent, float w, float d)
+    {
+        var go = new GameObject("Safety_Ceil");
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = new Vector3(0f, wallHeight - 0.4f, 0f);
+        var col = go.AddComponent<BoxCollider>();
+        col.isTrigger = true;
+        col.size = new Vector3(w - 1f, 0.8f, d - 1f);
+        var gp = go.AddComponent<GravityPanel>();
+        gp.SetDirection(Vector3.down);
     }
 
     // ── Room 2: Puzzle Room ───────────────────────────────────────────────────
@@ -155,39 +223,120 @@ public class LevelBuilder : MonoBehaviour
     private void CreateGravityCubeRoom(Transform parent)
     {
         const float W = 24f, D = 22f;
-        // Offset so the shared wall between rooms aligns: room1 east wall = room2 west wall = x=10
         var room = NewRoom("PuzzleRoom", parent, new Vector3(22f, 0f, 0f));
-        // Omit west wall — shared with intro room (intro room's east wall serves as the divider)
-        BuildRoomShell(room, W, D, omitWest: true);
+        // omitWest: Room 1 already built the shared wall. omitEast: we build the exit doorway below.
+        BuildRoomShell(room, W, D, omitWest: true, omitEast: true);
+        BuildWallWithDoorway(room, "WallE", W * 0.5f, D, isXAxis: true);
 
         CreateGravityCube(room, new Vector3(2f, 0.5f, -4f));
 
-        // Walk-through gravity volumes
-        CreateGravityVolume(room, "GravVol_Up",    new Vector3(-7f, wallHeight * 0.5f, -6f),
-            new Vector3(3f, wallHeight, 3f), Vector3.up);
-        CreateGravityVolume(room, "GravVol_Down",  new Vector3(4f,  wallHeight * 0.5f,  4f),
-            new Vector3(3f, wallHeight, 3f), Vector3.down);
-        CreateGravityVolume(room, "GravVol_Right", new Vector3(-9f, wallHeight * 0.5f,  3f),
-            new Vector3(3f, wallHeight, 3f), Vector3.right);
+        // Six gravity directions — colour-coded so the player can learn them visually
+        CreateGravityVolume(room, "GravVol_Up",      new Vector3(-7f, 0f, -5f), Vector3.up);
+        CreateGravityVolume(room, "GravVol_Down",    new Vector3( 4f, 0f,  5f), Vector3.down);
+        CreateGravityVolume(room, "GravVol_Right",   new Vector3(-9f, 0f,  4f), Vector3.right);
+        CreateGravityVolume(room, "GravVol_Left",    new Vector3( 9f, 0f, -3f), Vector3.left);
+        CreateGravityVolume(room, "GravVol_Forward", new Vector3(-4f, 0f,  0f), Vector3.forward);
+        CreateGravityVolume(room, "GravVol_Back",    new Vector3( 5f, 0f, -6f), Vector3.back);
 
-        // Platforms reachable after gravity flips
-        CreatePlatform(room, new Vector3(4f,   wallHeight - 0.4f,  4f), new Vector3(4f, 0.3f, 4f), "CeilingPlatform");
-        CreatePlatform(room, new Vector3(-6f,  1.1f,  7f),              new Vector3(4f, 0.3f, 4f), "MidPlatform_A");
-        CreatePlatform(room, new Vector3(5f,   2.5f, -7f),              new Vector3(3f, 0.3f, 3f), "MidPlatform_B");
-        CreatePlatform(room, new Vector3(-9f,  1.0f, -3f),              new Vector3(3f, 0.3f, 5f), "LandingPlatform");
+        // Floor-level green reset tiles along every wall base + ceiling safety trigger.
+        CreateGravityVolume(room, "Reset_NearN", new Vector3(  0f,  0f,  9f),  Vector3.down);
+        CreateGravityVolume(room, "Reset_NearS", new Vector3(  0f,  0f, -9f),  Vector3.down);
+        CreateGravityVolume(room, "Reset_NearE", new Vector3(10.5f, 0f,  0f),  Vector3.down);
+        MakeCeilingSafetyTrigger(room, W, D);
 
-        // Second torch
+        CreatePlatform(room, new Vector3(4f,  wallHeight - 0.4f,  4f), new Vector3(4f, 0.3f, 4f), "CeilingPlatform");
+        CreatePlatform(room, new Vector3(-6f, 1.1f,  7f),              new Vector3(4f, 0.3f, 4f), "MidPlatform_A");
+        CreatePlatform(room, new Vector3(5f,  2.5f, -7f),              new Vector3(3f, 0.3f, 3f), "MidPlatform_B");
+        CreatePlatform(room, new Vector3(-9f, 1.0f, -3f),              new Vector3(3f, 0.3f, 5f), "LandingPlatform");
+
         CreateTorchStation(room, new Vector3(-9f, 0.45f, 0f), "PuzzleTorch", lit: false);
 
-        // Locked exit door
-        var exitDoor = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f),
-            Quaternion.Euler(0f, 90f, 0f), "ExitDoor");
-
-        // Torch switch near exit door — bring lit torch to open
+        // Exit door sits in the east doorway; torch switch opens it
+        var exitDoor = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f), Quaternion.identity, "ExitDoor");
         CreateDoorSwitch(room, new Vector3(8f, 1.1f, -2f), exitDoor,
-            "Light the Way", "Bring a lit torch to the glowing switch near the east wall.");
+            "Light the Way", "Carry a lit torch to the switch near the east wall to open the exit.");
 
-        CreateExitTrigger(room, new Vector3(W * 0.5f + 1f, 1f, 0f));
+        // No exit trigger — the treasure room itself is the reward.
+
+        DecoratePuzzleRoom(room, W, D);
+    }
+
+    // ── Room 3: Treasure Room ─────────────────────────────────────────────────
+
+    private void CreateTreasureRoom(Transform parent)
+    {
+        // Sits directly east of Room 2 (Room 2 east wall = world x 34).
+        // offset x=39 + W/2=5 puts the west wall at world x=34, matching the exit doorway.
+        const float W = 10f, D = 14f;
+        var room = NewRoom("TreasureRoom", parent, new Vector3(39f, 0f, 0f));
+
+        Color wallGold  = new Color(0.22f, 0.18f, 0.06f);  // dark warm stone
+        Color goldBright= new Color(1.00f, 0.82f, 0.12f);
+        Color goldDark  = new Color(0.72f, 0.50f, 0.04f);
+        Color goldShiny = new Color(1.00f, 0.94f, 0.45f);
+        Color gemRed    = new Color(0.85f, 0.10f, 0.10f);
+        Color gemBlue   = new Color(0.10f, 0.30f, 0.90f);
+
+        // Walls / shell — warm dark-gold stone
+        CreateBox(room, "Floor",   new Vector3(0f, 0f, 0f),             new Vector3(W, 0.2f, D), wallGold);
+        CreateBox(room, "Ceiling", new Vector3(0f, wallHeight, 0f),     new Vector3(W + wallThickness, 0.2f, D + wallThickness), wallGold);
+        CreateBox(room, "WallN",   new Vector3(0f, wallHeight*0.5f,  D*0.5f), new Vector3(W + wallThickness, wallHeight, wallThickness), wallGold);
+        CreateBox(room, "WallS",   new Vector3(0f, wallHeight*0.5f, -D*0.5f), new Vector3(W + wallThickness, wallHeight, wallThickness), wallGold);
+        CreateBox(room, "WallE",   new Vector3(W*0.5f, wallHeight*0.5f, 0f),  new Vector3(wallThickness, wallHeight, D), wallGold);
+        // West wall omitted — open to Room 2
+
+        // Gold floor overlay
+        CreateBox(room, "GoldFloor", new Vector3(0f, 0.11f, 0f), new Vector3(W - 0.5f, 0.04f, D - 0.5f), goldDark);
+
+        // ── Central treasure mound ────────────────────────────────────────────
+        CreateBox(room, "Mound_Base", new Vector3(1.5f, 0.35f, 0f), new Vector3(4f, 0.7f, 3.5f), goldDark);
+        CreateBox(room, "Mound_Mid",  new Vector3(1.5f, 0.85f, 0f), new Vector3(2.8f, 0.5f, 2.5f), goldBright);
+        CreateBox(room, "Mound_Top",  new Vector3(1.5f, 1.20f, 0f), new Vector3(1.5f, 0.4f, 1.5f), goldShiny);
+        CreateBox(room, "Mound_Peak", new Vector3(1.5f, 1.55f, 0f), new Vector3(0.7f, 0.3f, 0.7f), goldShiny);
+
+        // ── Chests ────────────────────────────────────────────────────────────
+        // Left chest (open)
+        CreateBox(room, "ChestL_Body", new Vector3(-2f, 0.30f, -3.5f), new Vector3(1.6f, 0.6f, 1.0f), goldDark);
+        CreateBox(room, "ChestL_Lid",  new Vector3(-2f, 0.68f, -3.5f), new Vector3(1.6f, 0.28f, 1.0f), goldBright);
+        CreateBox(room, "ChestL_Rim",  new Vector3(-2f, 0.50f, -3.5f), new Vector3(1.7f, 0.08f, 1.1f), goldShiny);
+        CreateBox(room, "ChestL_Gems", new Vector3(-2f, 0.65f, -3.5f), new Vector3(0.4f, 0.15f, 0.4f), gemRed);
+
+        // Right chest (open)
+        CreateBox(room, "ChestR_Body", new Vector3(-2f, 0.30f,  3.5f), new Vector3(1.6f, 0.6f, 1.0f), goldDark);
+        CreateBox(room, "ChestR_Lid",  new Vector3(-2f, 0.68f,  3.5f), new Vector3(1.6f, 0.28f, 1.0f), goldBright);
+        CreateBox(room, "ChestR_Rim",  new Vector3(-2f, 0.50f,  3.5f), new Vector3(1.7f, 0.08f, 1.1f), goldShiny);
+        CreateBox(room, "ChestR_Gems", new Vector3(-2f, 0.65f,  3.5f), new Vector3(0.4f, 0.15f, 0.4f), gemBlue);
+
+        // ── Scattered coins / nuggets ─────────────────────────────────────────
+        CreateBox(room, "Coins_A", new Vector3( 0.0f, 0.13f,  2.0f), new Vector3(1.2f, 0.05f, 0.8f), goldShiny);
+        CreateBox(room, "Coins_B", new Vector3(-1.5f, 0.13f, -1.5f), new Vector3(0.9f, 0.05f, 0.6f), goldShiny);
+        CreateBox(room, "Coins_C", new Vector3( 3.0f, 0.13f,  1.0f), new Vector3(0.7f, 0.05f, 0.5f), goldBright);
+        CreateBox(room, "Coins_D", new Vector3(-2.5f, 0.13f,  1.0f), new Vector3(1.0f, 0.05f, 0.7f), goldShiny);
+        CreateBox(room, "Nugget_A",new Vector3( 0.5f, 0.22f, -2.5f), new Vector3(0.5f, 0.20f, 0.4f), goldBright);
+        CreateBox(room, "Nugget_B",new Vector3( 3.5f, 0.22f, -1.5f), new Vector3(0.4f, 0.20f, 0.4f), goldShiny);
+
+        // ── Gold pillars ──────────────────────────────────────────────────────
+        float ph = wallHeight;
+        CreateBox(room, "Pillar_NW", new Vector3(-4f, ph*0.5f,  5.5f), new Vector3(0.6f, ph, 0.6f), goldDark);
+        CreateBox(room, "Pillar_SW", new Vector3(-4f, ph*0.5f, -5.5f), new Vector3(0.6f, ph, 0.6f), goldDark);
+        CreateBox(room, "Pillar_NE", new Vector3( 4f, ph*0.5f,  5.5f), new Vector3(0.6f, ph, 0.6f), goldDark);
+        CreateBox(room, "Pillar_SE", new Vector3( 4f, ph*0.5f, -5.5f), new Vector3(0.6f, ph, 0.6f), goldDark);
+        // Pillar caps
+        CreateBox(room, "Cap_NW", new Vector3(-4f, ph + 0.15f,  5.5f), new Vector3(0.9f, 0.3f, 0.9f), goldShiny);
+        CreateBox(room, "Cap_SW", new Vector3(-4f, ph + 0.15f, -5.5f), new Vector3(0.9f, 0.3f, 0.9f), goldShiny);
+        CreateBox(room, "Cap_NE", new Vector3( 4f, ph + 0.15f,  5.5f), new Vector3(0.9f, 0.3f, 0.9f), goldShiny);
+        CreateBox(room, "Cap_SE", new Vector3( 4f, ph + 0.15f, -5.5f), new Vector3(0.9f, 0.3f, 0.9f), goldShiny);
+
+        // ── Warm golden point light ───────────────────────────────────────────
+        var lg = new GameObject("TreasureLight");
+        lg.transform.SetParent(room, false);
+        lg.transform.localPosition = new Vector3(1.5f, 2.5f, 0f);
+        var l = lg.AddComponent<Light>();
+        l.type      = LightType.Point;
+        l.color     = new Color(1f, 0.88f, 0.35f);
+        l.intensity = 4f;
+        l.range     = 18f;
+        l.shadows   = LightShadows.Soft;
     }
 
     // ── Room Shell ────────────────────────────────────────────────────────────
@@ -209,7 +358,7 @@ public class LevelBuilder : MonoBehaviour
 
     private PuzzleDoor CreateDoor(Transform parent, Vector3 pos, Quaternion rot, string doorName)
     {
-        var doorGO = CreateBox(parent, doorName, pos, new Vector3(0.4f, 2.4f, 2.2f), doorColor);
+        var doorGO = CreateBox(parent, doorName, pos, new Vector3(0.4f, 2.4f, 2.8f), doorColor);
         doorGO.transform.localRotation = rot;
 
         var closed = new GameObject(doorName + "_Closed");
@@ -267,21 +416,37 @@ public class LevelBuilder : MonoBehaviour
         gp.SetDirection(gravityDir);
     }
 
-    // Walk-through gravity volume: visible colored column with a trigger the player walks into.
-    private void CreateGravityVolume(Transform parent, string volName, Vector3 pos,
-        Vector3 size, Vector3 gravityDir)
+    // Colour each gravity direction so players can learn them visually.
+    private static Color GravityTileColor(Vector3 dir)
     {
-        // Visible marker (semi-transparent blue box)
-        var visual = CreateBox(parent, volName + "_Visual", pos, size * 0.9f, panelColor);
+        if (dir == Vector3.down)    return new Color(0.10f, 0.75f, 0.25f); // green  — reset/floor
+        if (dir == Vector3.up)      return new Color(0.90f, 0.80f, 0.10f); // yellow — ceiling
+        if (dir == Vector3.right)   return new Color(0.15f, 0.40f, 0.90f); // blue   — right wall
+        if (dir == Vector3.left)    return new Color(0.80f, 0.20f, 0.20f); // red    — left wall
+        if (dir == Vector3.forward) return new Color(0.70f, 0.20f, 0.90f); // purple — front wall
+        if (dir == Vector3.back)    return new Color(0.90f, 0.55f, 0.10f); // orange — back wall
+        return new Color(0.12f, 0.44f, 0.74f);
+    }
 
-        // Invisible trigger volume (slightly larger so you don't have to be pixel-perfect)
+    // Floor-plate gravity marker: a flat coloured tile on the ground plus a tall invisible trigger above it.
+    private void CreateGravityVolume(Transform parent, string volName, Vector3 floorPos, Vector3 gravityDir)
+    {
+        const float tileSize = 3f;
+
+        // Flat visible tile sitting ON TOP of the floor (floor top surface is at y=0.1)
+        CreateBox(parent, volName + "_Tile",
+            floorPos + new Vector3(0f, 0.15f, 0f),
+            new Vector3(tileSize, 0.1f, tileSize), GravityTileColor(gravityDir));
+
+        // Tall invisible trigger spanning floor-to-ceiling above the tile
+        float trigH = wallHeight - 0.2f;
         var trigger = new GameObject(volName + "_Trigger");
         trigger.transform.SetParent(parent, false);
-        trigger.transform.localPosition = pos;
+        trigger.transform.localPosition = floorPos + new Vector3(0f, 0.2f + trigH * 0.5f, 0f);
 
-        var col       = trigger.AddComponent<BoxCollider>();
+        var col   = trigger.AddComponent<BoxCollider>();
         col.isTrigger = true;
-        col.size      = size;
+        col.size  = new Vector3(tileSize, trigH, tileSize);
 
         var gp = trigger.AddComponent<GravityPanel>();
         gp.SetDirection(gravityDir);
@@ -392,20 +557,241 @@ public class LevelBuilder : MonoBehaviour
         r.material = mat;
     }
 
-    // ── HUD Builder ───────────────────────────────────────────────────────────
+    // ── Dungeon Decor ─────────────────────────────────────────────────────────
 
-    private static Font _hudFont;
-    private static Font HudFont
+    private void DecorateIntroRoom(Transform room, float w, float d)
     {
-        get
-        {
-            if (_hudFont != null) return _hudFont;
-            _hudFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (_hudFont == null) _hudFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            if (_hudFont == null) _hudFont = Font.CreateDynamicFontFromOSFont("Arial", 14);
-            return _hudFont;
-        }
+        // Stone columns flanking walls
+        PlaceColumn(room, new Vector3(-8.5f, 0f, -7.0f));
+        PlaceColumn(room, new Vector3(-8.5f, 0f,  7.0f));
+        PlaceColumn(room, new Vector3( 7.0f, 0f, -8.0f));
+        PlaceColumn(room, new Vector3( 7.0f, 0f,  8.0f));
+
+        // Barrel clusters near west wall
+        PlaceBarrel(room, new Vector3(-8.0f, 0f, -4.5f));
+        PlaceBarrel(room, new Vector3(-7.5f, 0f, -5.8f));
+        PlaceBarrel(room, new Vector3(-7.5f, 0f,  5.0f));
+        PlaceBarrel(room, new Vector3( 6.5f, 0f, -7.5f));
+
+        // Crate stacks near walls
+        PlaceCrates(room, new Vector3(-7.0f, 0f, -8.5f), 2);
+        PlaceCrates(room, new Vector3( 6.0f, 0f,  8.0f), 1);
+        PlaceCrates(room, new Vector3( 7.0f, 0f, -9.5f), 2);
+
+        // Wall torches — warm point lights plus visual props
+        PlaceWallTorch(room, new Vector3(-4.5f, 2.0f,  10.55f));
+        PlaceWallTorch(room, new Vector3( 4.5f, 2.0f,  10.55f));
+        PlaceWallTorch(room, new Vector3(-4.5f, 2.0f, -10.55f));
+        PlaceWallTorch(room, new Vector3( 4.5f, 2.0f, -10.55f));
+        PlaceWallTorch(room, new Vector3(-9.55f, 2.0f, -4.5f));
+        PlaceWallTorch(room, new Vector3(-9.55f, 2.0f,  4.5f));
+
+        // Rubble piles
+        PlaceRubble(room, new Vector3( 2.5f, 0f, -8.5f));
+        PlaceRubble(room, new Vector3(-3.0f, 0f,  8.0f));
+        PlaceRubble(room, new Vector3( 7.0f, 0f,  4.0f));
+
+        // Crimson banners on north wall
+        PlaceBanner(room, new Vector3(-3.5f, 2.0f, 10.65f));
+        PlaceBanner(room, new Vector3( 3.5f, 2.0f, 10.65f));
+
+        // Hanging chains from ceiling
+        PlaceChain(room, new Vector3(-2.0f, wallHeight - 0.1f,  6.5f), 1.8f);
+        PlaceChain(room, new Vector3( 5.0f, wallHeight - 0.1f, -7.5f), 2.5f);
+
+        // Bone piles on the floor
+        PlaceBones(room, new Vector3( 3.0f, 0f, -8.5f));
+        PlaceBones(room, new Vector3(-6.0f, 0f,  3.0f));
+
+        // Floor crack details
+        PlaceFloorCrack(room, new Vector3(-3.5f, 0f, -6.5f));
+        PlaceFloorCrack(room, new Vector3( 1.5f, 0f,  7.5f));
+        PlaceFloorCrack(room, new Vector3( 6.5f, 0f,  2.5f));
+
+        // Moss patches near wall bases
+        PlaceMoss(room, new Vector3(-9.2f, 0f,  0.0f));
+        PlaceMoss(room, new Vector3( 0.0f, 0f, 10.5f));
+        PlaceMoss(room, new Vector3(-1.5f, 0f,-10.5f));
+
+        // Candles on crate tops
+        PlaceCandle(room, new Vector3(-6.8f, 1.65f, -8.3f));
+        PlaceCandle(room, new Vector3(-6.5f, 1.65f, -8.0f));
+        PlaceCandle(room, new Vector3( 6.2f, 0.85f,  8.0f));
     }
+
+    private void DecoratePuzzleRoom(Transform room, float w, float d)
+    {
+        // Columns flanking the longer room
+        PlaceColumn(room, new Vector3(-10.0f, 0f, -7.0f));
+        PlaceColumn(room, new Vector3(-10.0f, 0f,  7.0f));
+        PlaceColumn(room, new Vector3(  9.0f, 0f, -8.0f));
+        PlaceColumn(room, new Vector3(  9.0f, 0f,  8.0f));
+        PlaceColumn(room, new Vector3( -3.0f, 0f, -9.5f));
+        PlaceColumn(room, new Vector3( -3.0f, 0f,  9.5f));
+
+        // Barrel clusters
+        PlaceBarrel(room, new Vector3(-10.5f, 0f, -2.5f));
+        PlaceBarrel(room, new Vector3(-10.0f, 0f, -3.5f));
+        PlaceBarrel(room, new Vector3(  9.0f, 0f,  6.0f));
+        PlaceBarrel(room, new Vector3(  8.5f, 0f,  7.2f));
+        PlaceBarrel(room, new Vector3( -4.5f, 0f,  9.5f));
+
+        // Crate stacks
+        PlaceCrates(room, new Vector3(-10.0f, 0f, -9.5f), 3);
+        PlaceCrates(room, new Vector3(  8.5f, 0f, -9.5f), 2);
+        PlaceCrates(room, new Vector3(-10.5f, 0f,  0.5f), 1);
+        PlaceCrates(room, new Vector3(  9.5f, 0f, -4.0f), 2);
+
+        // Wall torches
+        PlaceWallTorch(room, new Vector3( -5.0f, 2.0f,  10.55f));
+        PlaceWallTorch(room, new Vector3(  5.0f, 2.0f,  10.55f));
+        PlaceWallTorch(room, new Vector3( -5.0f, 2.0f, -10.55f));
+        PlaceWallTorch(room, new Vector3(  5.0f, 2.0f, -10.55f));
+        PlaceWallTorch(room, new Vector3(-11.55f, 2.0f, -5.0f));
+        PlaceWallTorch(room, new Vector3(-11.55f, 2.0f,  5.0f));
+
+        // Rubble
+        PlaceRubble(room, new Vector3( -1.5f, 0f, -9.0f));
+        PlaceRubble(room, new Vector3(  5.5f, 0f,  8.5f));
+        PlaceRubble(room, new Vector3(-10.5f, 0f,  4.5f));
+        PlaceRubble(room, new Vector3(  8.0f, 0f, -6.5f));
+
+        // Banners on north and south walls
+        PlaceBanner(room, new Vector3(-5.0f, 2.0f,  10.65f));
+        PlaceBanner(room, new Vector3( 4.0f, 2.0f,  10.65f));
+        PlaceBanner(room, new Vector3(-4.0f, 2.0f, -10.65f));
+        PlaceBanner(room, new Vector3( 5.0f, 2.0f, -10.65f));
+
+        // Hanging chains
+        PlaceChain(room, new Vector3(  0.0f, wallHeight - 0.1f, -8.5f), 2.0f);
+        PlaceChain(room, new Vector3( -5.5f, wallHeight - 0.1f,  5.5f), 1.5f);
+        PlaceChain(room, new Vector3(  6.0f, wallHeight - 0.1f, -3.0f), 2.8f);
+
+        // Bone piles
+        PlaceBones(room, new Vector3( -1.5f, 0f,  9.0f));
+        PlaceBones(room, new Vector3(  7.5f, 0f, -8.5f));
+        PlaceBones(room, new Vector3(-10.5f, 0f, -5.5f));
+
+        // Floor cracks
+        PlaceFloorCrack(room, new Vector3(  0.5f, 0f, -8.5f));
+        PlaceFloorCrack(room, new Vector3( -5.0f, 0f,  7.0f));
+        PlaceFloorCrack(room, new Vector3( -8.5f, 0f, -4.5f));
+        PlaceFloorCrack(room, new Vector3(  3.5f, 0f,  9.0f));
+        PlaceFloorCrack(room, new Vector3( 10.0f, 0f,  2.5f));
+
+        // Moss patches
+        PlaceMoss(room, new Vector3(-11.2f, 0f,  0.0f));
+        PlaceMoss(room, new Vector3(  0.0f, 0f, 10.5f));
+        PlaceMoss(room, new Vector3(  1.5f, 0f,-10.5f));
+        PlaceMoss(room, new Vector3( 10.5f, 0f, -1.0f));
+
+        // Candles on crate tops
+        PlaceCandle(room, new Vector3(-9.7f, 2.48f, -9.3f));
+        PlaceCandle(room, new Vector3(-9.5f, 2.48f, -9.0f));
+        PlaceCandle(room, new Vector3( 8.7f, 1.65f, -9.3f));
+    }
+
+    private void PlaceColumn(Transform parent, Vector3 pos)
+    {
+        Color light = new Color(stoneColor.r * 1.25f, stoneColor.g * 1.25f, stoneColor.b * 1.25f);
+        float sh = wallHeight - 0.4f;
+        float sc = 0.2f + sh * 0.5f;
+        CreateBox(parent, "ColBase",  pos + new Vector3(0, 0.1f, 0), new Vector3(0.9f, 0.2f,  0.9f),  stoneColor);
+        CreateBox(parent, "ColShaft", pos + new Vector3(0, sc,   0), new Vector3(0.46f, sh,   0.46f), light);
+        CreateBox(parent, "ColCap",   pos + new Vector3(0, wallHeight - 0.1f, 0), new Vector3(0.9f, 0.22f, 0.9f), stoneColor);
+    }
+
+    private void PlaceBarrel(Transform parent, Vector3 pos)
+    {
+        var body = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        body.name = "Barrel";
+        body.transform.SetParent(parent, false);
+        body.transform.localPosition = pos + new Vector3(0, 0.44f, 0);
+        body.transform.localScale    = new Vector3(0.48f, 0.44f, 0.48f);
+        ApplyColor(body, _wood);
+        CreateBox(parent, "BTop", pos + new Vector3(0, 0.90f, 0), new Vector3(0.50f, 0.06f, 0.50f), _dkWood);
+        CreateBox(parent, "BH1",  pos + new Vector3(0, 0.22f, 0), new Vector3(0.52f, 0.04f, 0.52f), _iron);
+        CreateBox(parent, "BH2",  pos + new Vector3(0, 0.55f, 0), new Vector3(0.52f, 0.04f, 0.52f), _iron);
+        CreateBox(parent, "BH3",  pos + new Vector3(0, 0.78f, 0), new Vector3(0.52f, 0.04f, 0.52f), _iron);
+    }
+
+    private void PlaceCrates(Transform parent, Vector3 pos, int stack)
+    {
+        for (int i = 0; i < stack; i++)
+            CreateBox(parent, $"Crate{i}",
+                pos + new Vector3(0, 0.4f + i * 0.82f, 0),
+                new Vector3(0.8f, 0.8f, 0.8f),
+                i % 2 == 0 ? _wood : _dkWood);
+    }
+
+    private void PlaceWallTorch(Transform parent, Vector3 pos)
+    {
+        CreateBox(parent, "WTBracket", pos,                             new Vector3(0.28f, 0.08f, 0.28f), _iron);
+        CreateBox(parent, "WTBody",    pos + new Vector3(0, 0.22f, 0), new Vector3(0.10f, 0.28f, 0.10f), _wood);
+        CreateBox(parent, "WTFlame",   pos + new Vector3(0, 0.46f, 0), new Vector3(0.14f, 0.16f, 0.14f), _flame);
+
+        var lg = new GameObject("WTLight");
+        lg.transform.SetParent(parent, false);
+        lg.transform.localPosition = pos + new Vector3(0, 0.55f, 0);
+        var l       = lg.AddComponent<Light>();
+        l.type      = LightType.Point;
+        l.color     = new Color(1f, 0.55f, 0.15f);
+        l.intensity = 1.2f;
+        l.range     = 7f;
+        l.shadows   = LightShadows.None;
+    }
+
+    private void PlaceRubble(Transform parent, Vector3 pos)
+    {
+        CreateBox(parent, "Rub0", pos + new Vector3( 0.00f, 0.10f,  0.00f), new Vector3(0.55f, 0.20f, 0.45f), _rubble);
+        CreateBox(parent, "Rub1", pos + new Vector3( 0.30f, 0.07f,  0.20f), new Vector3(0.30f, 0.14f, 0.35f), _rubble);
+        CreateBox(parent, "Rub2", pos + new Vector3(-0.25f, 0.07f, -0.15f), new Vector3(0.25f, 0.12f, 0.30f), _rubble);
+        CreateBox(parent, "Rub3", pos + new Vector3( 0.15f, 0.06f, -0.30f), new Vector3(0.22f, 0.10f, 0.20f),
+            new Color(_rubble.r * 0.75f, _rubble.g * 0.75f, _rubble.b * 0.75f));
+    }
+
+    private void PlaceBanner(Transform parent, Vector3 pos)
+    {
+        CreateBox(parent, "BanPole",  pos + new Vector3(0,  0.06f,  0.00f), new Vector3(1.20f, 0.08f, 0.08f), _iron);
+        CreateBox(parent, "BanCloth", pos + new Vector3(0, -0.65f,  0.00f), new Vector3(1.00f, 1.40f, 0.06f), _banner);
+        CreateBox(parent, "BanSym",   pos + new Vector3(0, -0.50f, -0.04f), new Vector3(0.25f, 0.50f, 0.05f),
+            new Color(0.75f, 0.55f, 0.10f));
+    }
+
+    private void PlaceChain(Transform parent, Vector3 topPos, float length)
+    {
+        CreateBox(parent, "Chain",
+            new Vector3(topPos.x, topPos.y - length * 0.5f, topPos.z),
+            new Vector3(0.05f, length, 0.05f), _iron);
+        CreateBox(parent, "ChainBall",
+            new Vector3(topPos.x, topPos.y - length, topPos.z),
+            new Vector3(0.14f, 0.14f, 0.14f), _iron);
+    }
+
+    private void PlaceBones(Transform parent, Vector3 pos)
+    {
+        CreateBox(parent, "Bone0", pos + new Vector3( 0.00f, 0.05f,  0.00f), new Vector3(0.40f, 0.08f, 0.08f), _bone);
+        CreateBox(parent, "Bone1", pos + new Vector3( 0.20f, 0.05f,  0.18f), new Vector3(0.28f, 0.06f, 0.06f), _bone);
+        CreateBox(parent, "Skull", pos + new Vector3(-0.10f, 0.10f, -0.08f), new Vector3(0.18f, 0.16f, 0.18f), _bone);
+        CreateBox(parent, "Bone2", pos + new Vector3(-0.20f, 0.05f,  0.10f), new Vector3(0.06f, 0.06f, 0.30f), _bone);
+    }
+
+    private void PlaceFloorCrack(Transform parent, Vector3 pos)
+    {
+        CreateBox(parent, "Crack0", pos + new Vector3(0.0f, 0.11f, 0.0f), new Vector3(1.2f, 0.015f, 0.07f), _rubble);
+        CreateBox(parent, "Crack1", pos + new Vector3(0.3f, 0.11f, 0.1f), new Vector3(0.6f, 0.015f, 0.05f), _rubble);
+    }
+
+    private void PlaceMoss(Transform parent, Vector3 pos)
+        => CreateBox(parent, "Moss", pos + new Vector3(0, 0.11f, 0), new Vector3(1.6f, 0.015f, 1.1f), _moss);
+
+    private void PlaceCandle(Transform parent, Vector3 pos)
+    {
+        CreateBox(parent, "Candle", pos + new Vector3(0, 0.07f, 0), new Vector3(0.06f, 0.14f, 0.06f), _candle);
+        CreateBox(parent, "CFlame", pos + new Vector3(0, 0.17f, 0), new Vector3(0.05f, 0.07f, 0.05f), _flame);
+    }
+
+    // ── HUD Builder ───────────────────────────────────────────────────────────
 
     private void BuildHUD()
     {
@@ -414,41 +800,17 @@ public class LevelBuilder : MonoBehaviour
         canvas.gameObject.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
         canvas.gameObject.AddComponent<UnityEngine.UI.GraphicRaycaster>();
 
-        // ── Objective panel (top-left) ────────────────────────────────────────
-        var hud = MakeCornerPanel(canvas.transform, "HUD_Panel",
-            new Vector2(0f, 1f), new Vector2(12f, -12f), new Vector2(280f, 148f),
-            new Color(0f, 0f, 0f, 0.6f));
-
-        var objTitle    = MakeLeftText(hud.transform, "—",                         8, 16, Color.white);
-        MakeSeparator(hud.transform, 28f);
-        var objDesc     = MakeLeftText(hud.transform, "",                         32, 13, new Color(0.85f, 0.85f, 0.85f));
-        var progress    = MakeLeftText(hud.transform, $"Puzzles: 0/{puzzlesToWin}", 80, 13, new Color(0.55f, 1f, 0.55f));
-        var torchStatus = MakeLeftText(hud.transform, "Torch: none",             104, 13, new Color(1f, 0.85f, 0.45f));
-        var hint        = MakeLeftText(hud.transform, "",                        128, 12, new Color(0.7f, 0.8f, 1f));
-
-        // ── Controls reminder (bottom-left) ───────────────────────────────────
-        var ctrl = MakeCornerPanel(canvas.transform, "Controls_Panel",
-            new Vector2(0f, 0f), new Vector2(12f, 12f), new Vector2(230f, 140f),
-            new Color(0f, 0f, 0f, 0.55f));
-        MakeLeftText(ctrl.transform, "CONTROLS",            8,  11, new Color(1f, 0.75f, 0.2f));
-        MakeSeparator(ctrl.transform, 22f);
-        MakeLeftText(ctrl.transform, "WASD - Move",        26,  13, Color.white);
-        MakeLeftText(ctrl.transform, "Mouse - Look",       44,  13, Color.white);
-        MakeLeftText(ctrl.transform, "Space - Jump",       62,  13, Color.white);
-        MakeLeftText(ctrl.transform, "E - Pickup  Q - Drop", 80, 13, Color.white);
-        MakeLeftText(ctrl.transform, "F - Torch  LMB - Throw", 98, 13, Color.white);
-        MakeLeftText(ctrl.transform, "Esc - Pause",       116,  13, Color.white);
-
-        // ── Crosshair ─────────────────────────────────────────────────────────
         BuildCrosshair(canvas.transform);
 
-        var ui = hud.AddComponent<UIManager>();
-        ui.Inject(hud, objTitle, objDesc, progress, torchStatus, hint,
+        // Pass null for hudPanel — there is no HUD panel to hide, and passing
+        // canvas.gameObject would disable the whole canvas (including win/pause panels).
+        var ui = canvas.gameObject.AddComponent<UIManager>();
+        ui.Inject(null, null, null, null, null, null,
             BuildWinPanel(canvas.transform),
             BuildPausePanel(canvas.transform));
     }
 
-    private static GameObject MakeCornerPanel(Transform parent, string name,
+    private static GameObject MakePanel(Transform parent, string name,
         Vector2 anchor, Vector2 offset, Vector2 size, Color bg)
     {
         var go = new GameObject(name);
@@ -462,28 +824,40 @@ public class LevelBuilder : MonoBehaviour
         return go;
     }
 
-    private static Text MakeLeftText(Transform parent, string content, float topOffset, int fontSize, Color color)
+    // Cached TMP font — loaded once and reused. Assets survive PlayMode re-runs so no staleness.
+    private static TMP_FontAsset _hudFont;
+
+    private static TMP_FontAsset GetHudFont()
+    {
+        if (_hudFont != null) return _hudFont;
+        // TMP Essential Resources install path (standard Unity project layout).
+        _hudFont = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+        if (_hudFont == null)
+            _hudFont = TMP_Settings.defaultFontAsset;
+        return _hudFont;
+    }
+
+    private static TMP_Text MakeTMP(Transform parent, string content, float topOffset,
+        float fontSize, Color color, TextAlignmentOptions align)
     {
         var go = new GameObject("T");
         go.transform.SetParent(parent, false);
-        // Simple top-left anchor — no stretch, no offsetMin/Max conflicts.
         var rt = go.AddComponent<RectTransform>();
         rt.anchorMin        = new Vector2(0f, 1f);
         rt.anchorMax        = new Vector2(0f, 1f);
         rt.pivot            = new Vector2(0f, 1f);
         rt.anchoredPosition = new Vector2(8f, -topOffset);
-        rt.sizeDelta        = new Vector2(260f, fontSize + 8f);
+        rt.sizeDelta        = new Vector2(280f, fontSize + 8f);
 
-        var t = go.AddComponent<Text>();
-        t.text               = content;
-        t.fontSize           = fontSize;
-        t.alignment          = TextAnchor.UpperLeft;
-        t.color              = color;
-        t.font               = HudFont;
-        t.horizontalOverflow = HorizontalWrapMode.Overflow;
-        t.verticalOverflow   = VerticalWrapMode.Overflow;
-        t.raycastTarget      = false;
-        go.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 1f);
+        var t = go.AddComponent<TextMeshProUGUI>();
+        var font = GetHudFont();
+        if (font != null) t.font = font;
+        t.text           = content;
+        t.fontSize       = fontSize;
+        t.color          = color;
+        t.alignment      = align;
+        t.raycastTarget  = false;
+        t.overflowMode   = TextOverflowModes.Overflow;
         return t;
     }
 
@@ -508,7 +882,6 @@ public class LevelBuilder : MonoBehaviour
         rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
         rt.anchoredPosition = Vector2.zero;
         rt.sizeDelta = new Vector2(16f, 16f);
-
         MakeCrosshairBar(go.transform, new Vector2(16f, 2f));
         MakeCrosshairBar(go.transform, new Vector2(2f,  16f));
     }
@@ -522,7 +895,6 @@ public class LevelBuilder : MonoBehaviour
         rt.anchoredPosition = Vector2.zero;
         rt.sizeDelta = size;
         bar.AddComponent<Image>().color = new Color(1f, 1f, 1f, 0.9f);
-        bar.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.7f);
     }
 
     private static GameObject BuildWinPanel(Transform canvasParent)
@@ -532,9 +904,9 @@ public class LevelBuilder : MonoBehaviour
         var rt = win.AddComponent<RectTransform>();
         rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
         rt.offsetMin = rt.offsetMax = Vector2.zero;
-        win.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.75f);
-        MakeCentredText(win.transform, "YOU ESCAPED!",      48, new Color(1f, 0.85f, 0.1f),          60f);
-        MakeCentredText(win.transform, "Press Esc to quit", 18, new Color(0.75f, 0.75f, 0.75f),      20f);
+        win.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.78f);
+        MakeCentredTMP(win.transform, "YOU ESCAPED!",       48, new Color(1f, 0.85f, 0.1f),     60f);
+        MakeCentredTMP(win.transform, "Press Esc to quit",  20, new Color(0.75f, 0.75f, 0.75f), 10f);
         win.SetActive(false);
         return win;
     }
@@ -547,51 +919,35 @@ public class LevelBuilder : MonoBehaviour
         rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
         rt.offsetMin = rt.offsetMax = Vector2.zero;
         pause.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.72f);
-        MakeCentredText(pause.transform, "PAUSED",                    40, Color.white,                      160f);
-        MakeCentredText(pause.transform, "WASD - Move",               18, new Color(0.85f, 0.85f, 0.85f),   90f);
-        MakeCentredText(pause.transform, "Mouse - Look",              18, new Color(0.85f, 0.85f, 0.85f),   62f);
-        MakeCentredText(pause.transform, "Space - Jump",              18, new Color(0.85f, 0.85f, 0.85f),   34f);
-        MakeCentredText(pause.transform, "E - Pickup   Q - Drop   F - Toggle", 18, new Color(0.85f, 0.85f, 0.85f), 6f);
-        MakeCentredText(pause.transform, "LMB - Throw",               18, new Color(0.85f, 0.85f, 0.85f),  -22f);
-        MakeCentredText(pause.transform, "Press Esc to resume",       20, new Color(1f, 0.85f, 0.2f),      -80f);
+        MakeCentredTMP(pause.transform, "PAUSED",                              40, Color.white,                      160f);
+        MakeCentredTMP(pause.transform, "WASD - Move",                         18, new Color(0.85f, 0.85f, 0.85f),   90f);
+        MakeCentredTMP(pause.transform, "Mouse - Look",                        18, new Color(0.85f, 0.85f, 0.85f),   62f);
+        MakeCentredTMP(pause.transform, "Space - Jump",                        18, new Color(0.85f, 0.85f, 0.85f),   34f);
+        MakeCentredTMP(pause.transform, "E - Pickup   Q - Drop   F - Toggle",  18, new Color(0.85f, 0.85f, 0.85f),   6f);
+        MakeCentredTMP(pause.transform, "LMB - Throw",                         18, new Color(0.85f, 0.85f, 0.85f),  -22f);
+        MakeCentredTMP(pause.transform, "Press Esc to resume",                 22, new Color(1f, 0.85f, 0.2f),      -80f);
         pause.SetActive(false);
         return pause;
     }
 
-    private static Text MakeCentredText(Transform parent, string content, int fontSize, Color color, float yFromCentre)
+    private static TMP_Text MakeCentredTMP(Transform parent, string content, float fontSize, Color color, float yFromCentre)
     {
         var go = new GameObject("T");
         go.transform.SetParent(parent, false);
         var rt = go.AddComponent<RectTransform>();
         rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
         rt.anchoredPosition = new Vector2(0f, yFromCentre);
-        rt.sizeDelta = new Vector2(800f, fontSize + 10f);
+        rt.sizeDelta = new Vector2(800f, fontSize + 12f);
 
-        var t = go.AddComponent<Text>();
-        t.text               = content;
-        t.fontSize           = fontSize;
-        t.alignment          = TextAnchor.MiddleCenter;
-        t.color              = color;
-        t.font               = HudFont;
-        t.horizontalOverflow = HorizontalWrapMode.Overflow;
-        t.verticalOverflow   = VerticalWrapMode.Overflow;
-        t.raycastTarget      = false;
-        go.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 1f);
+        var t = go.AddComponent<TextMeshProUGUI>();
+        var font = GetHudFont();
+        if (font != null) t.font = font;
+        t.text          = content;
+        t.fontSize      = fontSize;
+        t.color         = color;
+        t.alignment     = TextAlignmentOptions.Center;
+        t.raycastTarget = false;
+        t.overflowMode  = TextOverflowModes.Overflow;
         return t;
-    }
-
-    private static GameObject MakePanel(Transform parent, string panelName,
-        Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPos, Vector2 size, Color bgColor)
-    {
-        var go = new GameObject(panelName);
-        go.transform.SetParent(parent, false);
-        var rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = anchorMin;
-        rt.anchorMax = anchorMax;
-        rt.pivot     = anchorMin;
-        rt.anchoredPosition = anchoredPos;
-        rt.sizeDelta = size;
-        go.AddComponent<Image>().color = bgColor;
-        return go;
     }
 }
