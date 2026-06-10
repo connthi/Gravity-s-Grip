@@ -27,6 +27,17 @@ public class LevelBuilder : MonoBehaviour
     [SerializeField] private Color cubeColor      = new Color(0.28f, 0.16f, 0.08f);
     [SerializeField] private Color torchStandColor= new Color(0.12f, 0.08f, 0.04f);
 
+    // Decor palette — not inspector-exposed
+    private static readonly Color _wood   = new Color(0.30f, 0.18f, 0.08f);
+    private static readonly Color _dkWood = new Color(0.16f, 0.09f, 0.03f);
+    private static readonly Color _iron   = new Color(0.20f, 0.18f, 0.16f);
+    private static readonly Color _bone   = new Color(0.76f, 0.72f, 0.58f);
+    private static readonly Color _rubble = new Color(0.13f, 0.11f, 0.09f);
+    private static readonly Color _banner = new Color(0.44f, 0.05f, 0.05f);
+    private static readonly Color _moss   = new Color(0.12f, 0.26f, 0.09f);
+    private static readonly Color _candle = new Color(0.92f, 0.86f, 0.68f);
+    private static readonly Color _flame  = new Color(1.00f, 0.65f, 0.10f);
+
     [Header("Puzzle settings")]
     [SerializeField] private int puzzlesToWin = 1;
 
@@ -153,6 +164,8 @@ public class LevelBuilder : MonoBehaviour
         var door = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f), Quaternion.identity, "IntroDoor");
         BuildWallWithDoorway(room, "WallE", W * 0.5f, D, isXAxis: true);
         CreateProximitySwitch(room, new Vector3(W * 0.5f - 2.5f, 1.1f, 0f), door);
+
+        DecorateIntroRoom(room, W, D);
     }
 
     // Generic: builds a wall (east or north) with a centred doorway opening split into 3 boxes.
@@ -244,6 +257,8 @@ public class LevelBuilder : MonoBehaviour
             "Light the Way", "Carry a lit torch to the switch near the east wall to open the exit.");
 
         // No exit trigger — the treasure room itself is the reward.
+
+        DecoratePuzzleRoom(room, W, D);
     }
 
     // ── Room 3: Treasure Room ─────────────────────────────────────────────────
@@ -540,6 +555,240 @@ public class LevelBuilder : MonoBehaviour
         if (mat.HasProperty("_Metallic"))    mat.SetFloat("_Metallic", 0f);
         if (mat.HasProperty("_Glossiness")) mat.SetFloat("_Glossiness", 0.25f);
         r.material = mat;
+    }
+
+    // ── Dungeon Decor ─────────────────────────────────────────────────────────
+
+    private void DecorateIntroRoom(Transform room, float w, float d)
+    {
+        // Stone columns flanking walls
+        PlaceColumn(room, new Vector3(-8.5f, 0f, -7.0f));
+        PlaceColumn(room, new Vector3(-8.5f, 0f,  7.0f));
+        PlaceColumn(room, new Vector3( 7.0f, 0f, -8.0f));
+        PlaceColumn(room, new Vector3( 7.0f, 0f,  8.0f));
+
+        // Barrel clusters near west wall
+        PlaceBarrel(room, new Vector3(-8.0f, 0f, -4.5f));
+        PlaceBarrel(room, new Vector3(-7.5f, 0f, -5.8f));
+        PlaceBarrel(room, new Vector3(-7.5f, 0f,  5.0f));
+        PlaceBarrel(room, new Vector3( 6.5f, 0f, -7.5f));
+
+        // Crate stacks near walls
+        PlaceCrates(room, new Vector3(-7.0f, 0f, -8.5f), 2);
+        PlaceCrates(room, new Vector3( 6.0f, 0f,  8.0f), 1);
+        PlaceCrates(room, new Vector3( 7.0f, 0f, -9.5f), 2);
+
+        // Wall torches — warm point lights plus visual props
+        PlaceWallTorch(room, new Vector3(-4.5f, 2.0f,  10.55f));
+        PlaceWallTorch(room, new Vector3( 4.5f, 2.0f,  10.55f));
+        PlaceWallTorch(room, new Vector3(-4.5f, 2.0f, -10.55f));
+        PlaceWallTorch(room, new Vector3( 4.5f, 2.0f, -10.55f));
+        PlaceWallTorch(room, new Vector3(-9.55f, 2.0f, -4.5f));
+        PlaceWallTorch(room, new Vector3(-9.55f, 2.0f,  4.5f));
+
+        // Rubble piles
+        PlaceRubble(room, new Vector3( 2.5f, 0f, -8.5f));
+        PlaceRubble(room, new Vector3(-3.0f, 0f,  8.0f));
+        PlaceRubble(room, new Vector3( 7.0f, 0f,  4.0f));
+
+        // Crimson banners on north wall
+        PlaceBanner(room, new Vector3(-3.5f, 2.0f, 10.65f));
+        PlaceBanner(room, new Vector3( 3.5f, 2.0f, 10.65f));
+
+        // Hanging chains from ceiling
+        PlaceChain(room, new Vector3(-2.0f, wallHeight - 0.1f,  6.5f), 1.8f);
+        PlaceChain(room, new Vector3( 5.0f, wallHeight - 0.1f, -7.5f), 2.5f);
+
+        // Bone piles on the floor
+        PlaceBones(room, new Vector3( 3.0f, 0f, -8.5f));
+        PlaceBones(room, new Vector3(-6.0f, 0f,  3.0f));
+
+        // Floor crack details
+        PlaceFloorCrack(room, new Vector3(-3.5f, 0f, -6.5f));
+        PlaceFloorCrack(room, new Vector3( 1.5f, 0f,  7.5f));
+        PlaceFloorCrack(room, new Vector3( 6.5f, 0f,  2.5f));
+
+        // Moss patches near wall bases
+        PlaceMoss(room, new Vector3(-9.2f, 0f,  0.0f));
+        PlaceMoss(room, new Vector3( 0.0f, 0f, 10.5f));
+        PlaceMoss(room, new Vector3(-1.5f, 0f,-10.5f));
+
+        // Candles on crate tops
+        PlaceCandle(room, new Vector3(-6.8f, 1.65f, -8.3f));
+        PlaceCandle(room, new Vector3(-6.5f, 1.65f, -8.0f));
+        PlaceCandle(room, new Vector3( 6.2f, 0.85f,  8.0f));
+    }
+
+    private void DecoratePuzzleRoom(Transform room, float w, float d)
+    {
+        // Columns flanking the longer room
+        PlaceColumn(room, new Vector3(-10.0f, 0f, -7.0f));
+        PlaceColumn(room, new Vector3(-10.0f, 0f,  7.0f));
+        PlaceColumn(room, new Vector3(  9.0f, 0f, -8.0f));
+        PlaceColumn(room, new Vector3(  9.0f, 0f,  8.0f));
+        PlaceColumn(room, new Vector3( -3.0f, 0f, -9.5f));
+        PlaceColumn(room, new Vector3( -3.0f, 0f,  9.5f));
+
+        // Barrel clusters
+        PlaceBarrel(room, new Vector3(-10.5f, 0f, -2.5f));
+        PlaceBarrel(room, new Vector3(-10.0f, 0f, -3.5f));
+        PlaceBarrel(room, new Vector3(  9.0f, 0f,  6.0f));
+        PlaceBarrel(room, new Vector3(  8.5f, 0f,  7.2f));
+        PlaceBarrel(room, new Vector3( -4.5f, 0f,  9.5f));
+
+        // Crate stacks
+        PlaceCrates(room, new Vector3(-10.0f, 0f, -9.5f), 3);
+        PlaceCrates(room, new Vector3(  8.5f, 0f, -9.5f), 2);
+        PlaceCrates(room, new Vector3(-10.5f, 0f,  0.5f), 1);
+        PlaceCrates(room, new Vector3(  9.5f, 0f, -4.0f), 2);
+
+        // Wall torches
+        PlaceWallTorch(room, new Vector3( -5.0f, 2.0f,  10.55f));
+        PlaceWallTorch(room, new Vector3(  5.0f, 2.0f,  10.55f));
+        PlaceWallTorch(room, new Vector3( -5.0f, 2.0f, -10.55f));
+        PlaceWallTorch(room, new Vector3(  5.0f, 2.0f, -10.55f));
+        PlaceWallTorch(room, new Vector3(-11.55f, 2.0f, -5.0f));
+        PlaceWallTorch(room, new Vector3(-11.55f, 2.0f,  5.0f));
+
+        // Rubble
+        PlaceRubble(room, new Vector3( -1.5f, 0f, -9.0f));
+        PlaceRubble(room, new Vector3(  5.5f, 0f,  8.5f));
+        PlaceRubble(room, new Vector3(-10.5f, 0f,  4.5f));
+        PlaceRubble(room, new Vector3(  8.0f, 0f, -6.5f));
+
+        // Banners on north and south walls
+        PlaceBanner(room, new Vector3(-5.0f, 2.0f,  10.65f));
+        PlaceBanner(room, new Vector3( 4.0f, 2.0f,  10.65f));
+        PlaceBanner(room, new Vector3(-4.0f, 2.0f, -10.65f));
+        PlaceBanner(room, new Vector3( 5.0f, 2.0f, -10.65f));
+
+        // Hanging chains
+        PlaceChain(room, new Vector3(  0.0f, wallHeight - 0.1f, -8.5f), 2.0f);
+        PlaceChain(room, new Vector3( -5.5f, wallHeight - 0.1f,  5.5f), 1.5f);
+        PlaceChain(room, new Vector3(  6.0f, wallHeight - 0.1f, -3.0f), 2.8f);
+
+        // Bone piles
+        PlaceBones(room, new Vector3( -1.5f, 0f,  9.0f));
+        PlaceBones(room, new Vector3(  7.5f, 0f, -8.5f));
+        PlaceBones(room, new Vector3(-10.5f, 0f, -5.5f));
+
+        // Floor cracks
+        PlaceFloorCrack(room, new Vector3(  0.5f, 0f, -8.5f));
+        PlaceFloorCrack(room, new Vector3( -5.0f, 0f,  7.0f));
+        PlaceFloorCrack(room, new Vector3( -8.5f, 0f, -4.5f));
+        PlaceFloorCrack(room, new Vector3(  3.5f, 0f,  9.0f));
+        PlaceFloorCrack(room, new Vector3( 10.0f, 0f,  2.5f));
+
+        // Moss patches
+        PlaceMoss(room, new Vector3(-11.2f, 0f,  0.0f));
+        PlaceMoss(room, new Vector3(  0.0f, 0f, 10.5f));
+        PlaceMoss(room, new Vector3(  1.5f, 0f,-10.5f));
+        PlaceMoss(room, new Vector3( 10.5f, 0f, -1.0f));
+
+        // Candles on crate tops
+        PlaceCandle(room, new Vector3(-9.7f, 2.48f, -9.3f));
+        PlaceCandle(room, new Vector3(-9.5f, 2.48f, -9.0f));
+        PlaceCandle(room, new Vector3( 8.7f, 1.65f, -9.3f));
+    }
+
+    private void PlaceColumn(Transform parent, Vector3 pos)
+    {
+        Color light = new Color(stoneColor.r * 1.25f, stoneColor.g * 1.25f, stoneColor.b * 1.25f);
+        float sh = wallHeight - 0.4f;
+        float sc = 0.2f + sh * 0.5f;
+        CreateBox(parent, "ColBase",  pos + new Vector3(0, 0.1f, 0), new Vector3(0.9f, 0.2f,  0.9f),  stoneColor);
+        CreateBox(parent, "ColShaft", pos + new Vector3(0, sc,   0), new Vector3(0.46f, sh,   0.46f), light);
+        CreateBox(parent, "ColCap",   pos + new Vector3(0, wallHeight - 0.1f, 0), new Vector3(0.9f, 0.22f, 0.9f), stoneColor);
+    }
+
+    private void PlaceBarrel(Transform parent, Vector3 pos)
+    {
+        var body = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        body.name = "Barrel";
+        body.transform.SetParent(parent, false);
+        body.transform.localPosition = pos + new Vector3(0, 0.44f, 0);
+        body.transform.localScale    = new Vector3(0.48f, 0.44f, 0.48f);
+        ApplyColor(body, _wood);
+        CreateBox(parent, "BTop", pos + new Vector3(0, 0.90f, 0), new Vector3(0.50f, 0.06f, 0.50f), _dkWood);
+        CreateBox(parent, "BH1",  pos + new Vector3(0, 0.22f, 0), new Vector3(0.52f, 0.04f, 0.52f), _iron);
+        CreateBox(parent, "BH2",  pos + new Vector3(0, 0.55f, 0), new Vector3(0.52f, 0.04f, 0.52f), _iron);
+        CreateBox(parent, "BH3",  pos + new Vector3(0, 0.78f, 0), new Vector3(0.52f, 0.04f, 0.52f), _iron);
+    }
+
+    private void PlaceCrates(Transform parent, Vector3 pos, int stack)
+    {
+        for (int i = 0; i < stack; i++)
+            CreateBox(parent, $"Crate{i}",
+                pos + new Vector3(0, 0.4f + i * 0.82f, 0),
+                new Vector3(0.8f, 0.8f, 0.8f),
+                i % 2 == 0 ? _wood : _dkWood);
+    }
+
+    private void PlaceWallTorch(Transform parent, Vector3 pos)
+    {
+        CreateBox(parent, "WTBracket", pos,                             new Vector3(0.28f, 0.08f, 0.28f), _iron);
+        CreateBox(parent, "WTBody",    pos + new Vector3(0, 0.22f, 0), new Vector3(0.10f, 0.28f, 0.10f), _wood);
+        CreateBox(parent, "WTFlame",   pos + new Vector3(0, 0.46f, 0), new Vector3(0.14f, 0.16f, 0.14f), _flame);
+
+        var lg = new GameObject("WTLight");
+        lg.transform.SetParent(parent, false);
+        lg.transform.localPosition = pos + new Vector3(0, 0.55f, 0);
+        var l       = lg.AddComponent<Light>();
+        l.type      = LightType.Point;
+        l.color     = new Color(1f, 0.55f, 0.15f);
+        l.intensity = 1.2f;
+        l.range     = 7f;
+        l.shadows   = LightShadows.None;
+    }
+
+    private void PlaceRubble(Transform parent, Vector3 pos)
+    {
+        CreateBox(parent, "Rub0", pos + new Vector3( 0.00f, 0.10f,  0.00f), new Vector3(0.55f, 0.20f, 0.45f), _rubble);
+        CreateBox(parent, "Rub1", pos + new Vector3( 0.30f, 0.07f,  0.20f), new Vector3(0.30f, 0.14f, 0.35f), _rubble);
+        CreateBox(parent, "Rub2", pos + new Vector3(-0.25f, 0.07f, -0.15f), new Vector3(0.25f, 0.12f, 0.30f), _rubble);
+        CreateBox(parent, "Rub3", pos + new Vector3( 0.15f, 0.06f, -0.30f), new Vector3(0.22f, 0.10f, 0.20f),
+            new Color(_rubble.r * 0.75f, _rubble.g * 0.75f, _rubble.b * 0.75f));
+    }
+
+    private void PlaceBanner(Transform parent, Vector3 pos)
+    {
+        CreateBox(parent, "BanPole",  pos + new Vector3(0,  0.06f,  0.00f), new Vector3(1.20f, 0.08f, 0.08f), _iron);
+        CreateBox(parent, "BanCloth", pos + new Vector3(0, -0.65f,  0.00f), new Vector3(1.00f, 1.40f, 0.06f), _banner);
+        CreateBox(parent, "BanSym",   pos + new Vector3(0, -0.50f, -0.04f), new Vector3(0.25f, 0.50f, 0.05f),
+            new Color(0.75f, 0.55f, 0.10f));
+    }
+
+    private void PlaceChain(Transform parent, Vector3 topPos, float length)
+    {
+        CreateBox(parent, "Chain",
+            new Vector3(topPos.x, topPos.y - length * 0.5f, topPos.z),
+            new Vector3(0.05f, length, 0.05f), _iron);
+        CreateBox(parent, "ChainBall",
+            new Vector3(topPos.x, topPos.y - length, topPos.z),
+            new Vector3(0.14f, 0.14f, 0.14f), _iron);
+    }
+
+    private void PlaceBones(Transform parent, Vector3 pos)
+    {
+        CreateBox(parent, "Bone0", pos + new Vector3( 0.00f, 0.05f,  0.00f), new Vector3(0.40f, 0.08f, 0.08f), _bone);
+        CreateBox(parent, "Bone1", pos + new Vector3( 0.20f, 0.05f,  0.18f), new Vector3(0.28f, 0.06f, 0.06f), _bone);
+        CreateBox(parent, "Skull", pos + new Vector3(-0.10f, 0.10f, -0.08f), new Vector3(0.18f, 0.16f, 0.18f), _bone);
+        CreateBox(parent, "Bone2", pos + new Vector3(-0.20f, 0.05f,  0.10f), new Vector3(0.06f, 0.06f, 0.30f), _bone);
+    }
+
+    private void PlaceFloorCrack(Transform parent, Vector3 pos)
+    {
+        CreateBox(parent, "Crack0", pos + new Vector3(0.0f, 0.11f, 0.0f), new Vector3(1.2f, 0.015f, 0.07f), _rubble);
+        CreateBox(parent, "Crack1", pos + new Vector3(0.3f, 0.11f, 0.1f), new Vector3(0.6f, 0.015f, 0.05f), _rubble);
+    }
+
+    private void PlaceMoss(Transform parent, Vector3 pos)
+        => CreateBox(parent, "Moss", pos + new Vector3(0, 0.11f, 0), new Vector3(1.6f, 0.015f, 1.1f), _moss);
+
+    private void PlaceCandle(Transform parent, Vector3 pos)
+    {
+        CreateBox(parent, "Candle", pos + new Vector3(0, 0.07f, 0), new Vector3(0.06f, 0.14f, 0.06f), _candle);
+        CreateBox(parent, "CFlame", pos + new Vector3(0, 0.17f, 0), new Vector3(0.05f, 0.07f, 0.05f), _flame);
     }
 
     // ── HUD Builder ───────────────────────────────────────────────────────────
