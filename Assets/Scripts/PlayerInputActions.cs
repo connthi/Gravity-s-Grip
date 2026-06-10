@@ -12,14 +12,16 @@ public class PlayerInputActions
         // ── Player map ────────────────────────────────────────────────────────
         var pm = new InputActionMap("Player");
 
-        var move = pm.AddAction("Move", InputActionType.Value, expectedControlType: "Vector2");
+        var move = pm.AddAction("Move", InputActionType.Value);
+        move.expectedControlType = "Vector2";
         move.AddCompositeBinding("2DVector")
             .With("Up",    "<Keyboard>/w")
             .With("Down",  "<Keyboard>/s")
             .With("Left",  "<Keyboard>/a")
             .With("Right", "<Keyboard>/d");
 
-        var look = pm.AddAction("Look", InputActionType.Value, expectedControlType: "Vector2");
+        var look = pm.AddAction("Look", InputActionType.Value);
+        look.expectedControlType = "Vector2";
         look.AddBinding("<Mouse>/delta");
 
         var jump = pm.AddAction("Jump", InputActionType.Button);
