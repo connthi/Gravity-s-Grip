@@ -34,8 +34,9 @@ public class DoorSwitch : MonoBehaviour
 
     // -- Shims for LevelBuilder -----------------------------------------------
 
-    public void SetDoor(PuzzleDoor door)           => targetDoor = door;
-    public void SetObjective(PuzzleObjective obj)  => objective  = obj;
+    public void SetDoor(PuzzleDoor door)           => targetDoor      = door;
+    public void SetObjective(PuzzleObjective obj)  => objective       = obj;
+    public void SetRequireLitTorch(bool val)       => requireLitTorch = val;
 
     // -- Private ---------------------------------------------------------------
 

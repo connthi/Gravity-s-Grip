@@ -121,72 +121,72 @@ public class LevelBuilder : MonoBehaviour
         RenderSettings.ambientLight = new Color(0.06f, 0.06f, 0.06f);
     }
 
-    // ── Room 1: Introduction (tutorial — shows gravity panels, no locked doors) ─
+    // ── Room 1: Introduction ──────────────────────────────────────────────────
 
     private void CreateIntroRoom(Transform parent)
     {
         const float W = 20f, D = 18f;
         var room = NewRoom("IntroRoom", parent, Vector3.zero);
-        BuildRoomShell(room, W, D, omitEast: true);
+        // East wall IS built here; the door opening punches through it visually via PuzzleDoor sliding up
+        BuildRoomShell(room, W, D);
 
-        // Torch on a stand near the spawn point
+        // Torch near spawn — auto-lights when player walks close (autoPickupRadius)
         CreateTorchStation(room, new Vector3(-8f, 0.45f, 0f), "StartTorch", lit: true);
 
-        // Sign pillar hinting at the next room
-        CreateBox(room, "SignPost", new Vector3(6f, 0.9f, 0f), new Vector3(0.3f, 1.8f, 0.3f), stoneColor);
-
-        // Gravity panels along the north wall — demonstration area
-        CreateGravityPanel(room, "Demo_Right", new Vector3(-2f, wallHeight * 0.5f, D * 0.5f - 0.2f),
-            Quaternion.Euler(0f, 180f, 0f), Vector3.right);
-        CreateGravityPanel(room, "Demo_Down",  new Vector3(3f,  wallHeight * 0.5f, D * 0.5f - 0.2f),
-            Quaternion.Euler(0f, 180f, 0f), Vector3.down);
-
-        // Some platforms to jump on so the room feels populated
+        // Platforms to explore
         CreatePlatform(room, new Vector3(-5f, 1.5f, -4f), new Vector3(3f, 0.3f, 3f), "Platform_A");
         CreatePlatform(room, new Vector3(2f,  2.2f,  4f), new Vector3(3f, 0.3f, 3f), "Platform_B");
         CreatePlatform(room, new Vector3(5f,  1.0f, -6f), new Vector3(3f, 0.3f, 3f), "Platform_C");
 
-        // Passage east (no lock — tutorial)
-        var door = CreateDoor(room, new Vector3(W * 0.5f, 1.2f, 0f), Quaternion.Euler(0f, 90f, 0f), "IntroDoor");
-        door.Open();
+        // Walk-through gravity volumes (columns the player walks into, not thin walls)
+        CreateGravityVolume(room, "GravVol_Right", new Vector3(-2f, wallHeight * 0.5f, 2f),
+            new Vector3(2.5f, wallHeight, 2.5f), Vector3.right);
+        CreateGravityVolume(room, "GravVol_Down",  new Vector3(3f,  wallHeight * 0.5f, -3f),
+            new Vector3(2.5f, wallHeight, 2.5f), Vector3.down);
+
+        // Door to puzzle room — closed, opens when player walks into the trigger zone in front of it
+        var door = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f),
+            Quaternion.Euler(0f, 90f, 0f), "IntroDoor");
+        CreateProximitySwitch(room, new Vector3(W * 0.5f - 2f, 1.1f, 0f), door);
     }
 
-    // ── Room 2: Main Puzzle (locked exit requires lit torch) ──────────────────
+    // ── Room 2: Puzzle Room ───────────────────────────────────────────────────
 
     private void CreateGravityCubeRoom(Transform parent)
     {
         const float W = 24f, D = 22f;
+        // Offset so the shared wall between rooms aligns: room1 east wall = room2 west wall = x=10
         var room = NewRoom("PuzzleRoom", parent, new Vector3(22f, 0f, 0f));
+        // Omit west wall — shared with intro room (intro room's east wall serves as the divider)
         BuildRoomShell(room, W, D, omitWest: true);
 
-        // Gravity cube the player can carry
         CreateGravityCube(room, new Vector3(2f, 0.5f, -4f));
 
-        // Gravity panels scattered around the room
-        CreateGravityPanel(room, "Panel_Up",    new Vector3(-8f, wallHeight * 0.5f, -8f),
-            Quaternion.Euler(0f, 90f, 0f), Vector3.up);
-        CreateGravityPanel(room, "Panel_Down",  new Vector3(3f, wallHeight - 0.1f, 3f),
-            Quaternion.Euler(90f, 0f, 0f), Vector3.down);
-        CreateGravityPanel(room, "Panel_Right", new Vector3(-10f, wallHeight * 0.5f, 3f),
-            Quaternion.Euler(0f, 0f, 0f), Vector3.right);
+        // Walk-through gravity volumes
+        CreateGravityVolume(room, "GravVol_Up",    new Vector3(-7f, wallHeight * 0.5f, -6f),
+            new Vector3(3f, wallHeight, 3f), Vector3.up);
+        CreateGravityVolume(room, "GravVol_Down",  new Vector3(4f,  wallHeight * 0.5f,  4f),
+            new Vector3(3f, wallHeight, 3f), Vector3.down);
+        CreateGravityVolume(room, "GravVol_Right", new Vector3(-9f, wallHeight * 0.5f,  3f),
+            new Vector3(3f, wallHeight, 3f), Vector3.right);
 
-        // Elevated platforms reachable after gravity flip
-        CreatePlatform(room, new Vector3(3f,    wallHeight - 0.4f,  3f), new Vector3(4f, 0.3f, 4f), "CeilingPlatform");
-        CreatePlatform(room, new Vector3(-6f,   1.1f,  8f),              new Vector3(4f, 0.3f, 4f), "MidPlatform_A");
-        CreatePlatform(room, new Vector3(5f,    2.5f, -7f),              new Vector3(3f, 0.3f, 3f), "MidPlatform_B");
-        CreatePlatform(room, new Vector3(-9f,   1.0f, -3f),              new Vector3(3f, 0.3f, 5f), "LandingPlatform");
+        // Platforms reachable after gravity flips
+        CreatePlatform(room, new Vector3(4f,   wallHeight - 0.4f,  4f), new Vector3(4f, 0.3f, 4f), "CeilingPlatform");
+        CreatePlatform(room, new Vector3(-6f,  1.1f,  7f),              new Vector3(4f, 0.3f, 4f), "MidPlatform_A");
+        CreatePlatform(room, new Vector3(5f,   2.5f, -7f),              new Vector3(3f, 0.3f, 3f), "MidPlatform_B");
+        CreatePlatform(room, new Vector3(-9f,  1.0f, -3f),              new Vector3(3f, 0.3f, 5f), "LandingPlatform");
 
-        // Second torch in the puzzle room so the player has a fallback
+        // Second torch
         CreateTorchStation(room, new Vector3(-9f, 0.45f, 0f), "PuzzleTorch", lit: false);
 
-        // Locked exit door on the east wall
-        var exitDoor = CreateDoor(room, new Vector3(W * 0.5f, 1.2f, 0f), Quaternion.Euler(0f, 90f, 0f), "ExitDoor");
+        // Locked exit door
+        var exitDoor = CreateDoor(room, new Vector3(W * 0.5f - 0.3f, 1.2f, 0f),
+            Quaternion.Euler(0f, 90f, 0f), "ExitDoor");
 
-        // Torch switch — bring a lit torch here to open the exit
+        // Torch switch near exit door — bring lit torch to open
         CreateDoorSwitch(room, new Vector3(8f, 1.1f, -2f), exitDoor,
-            "Light the Way", "Bring a lit torch to the switch near the east wall to open the exit.");
+            "Light the Way", "Bring a lit torch to the glowing switch near the east wall.");
 
-        // Win trigger just past the exit door
         CreateExitTrigger(room, new Vector3(W * 0.5f + 1f, 1f, 0f));
     }
 
@@ -255,17 +255,52 @@ public class LevelBuilder : MonoBehaviour
         ds.SetObjective(obj);
     }
 
+    // Visible thin panel on a wall (kept for legacy use if needed)
     private void CreateGravityPanel(Transform parent, string panelName, Vector3 pos,
         Quaternion rot, Vector3 gravityDir)
     {
         var go = CreateBox(parent, panelName, pos, new Vector3(2.2f, 2.2f, 0.2f), panelColor);
         go.transform.localRotation = rot;
-
         var col       = go.GetComponent<BoxCollider>();
         col.isTrigger = true;
-
-        var gp              = go.AddComponent<GravityPanel>();
+        var gp = go.AddComponent<GravityPanel>();
         gp.SetDirection(gravityDir);
+    }
+
+    // Walk-through gravity volume: visible colored column with a trigger the player walks into.
+    private void CreateGravityVolume(Transform parent, string volName, Vector3 pos,
+        Vector3 size, Vector3 gravityDir)
+    {
+        // Visible marker (semi-transparent blue box)
+        var visual = CreateBox(parent, volName + "_Visual", pos, size * 0.9f, panelColor);
+
+        // Invisible trigger volume (slightly larger so you don't have to be pixel-perfect)
+        var trigger = new GameObject(volName + "_Trigger");
+        trigger.transform.SetParent(parent, false);
+        trigger.transform.localPosition = pos;
+
+        var col       = trigger.AddComponent<BoxCollider>();
+        col.isTrigger = true;
+        col.size      = size;
+
+        var gp = trigger.AddComponent<GravityPanel>();
+        gp.SetDirection(gravityDir);
+    }
+
+    // Proximity switch: player walks into zone and the door opens, no torch needed.
+    private void CreateProximitySwitch(Transform parent, Vector3 pos, PuzzleDoor door)
+    {
+        var go = new GameObject("ProximitySwitch");
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = pos;
+
+        var col       = go.AddComponent<BoxCollider>();
+        col.isTrigger = true;
+        col.size      = new Vector3(3f, 2.2f, 3f);
+
+        var ds = go.AddComponent<DoorSwitch>();
+        ds.SetDoor(door);
+        ds.SetRequireLitTorch(false);
     }
 
     private void CreateGravityCube(Transform parent, Vector3 pos)
@@ -359,10 +394,18 @@ public class LevelBuilder : MonoBehaviour
 
     // ── HUD Builder ───────────────────────────────────────────────────────────
 
-    // Cached so every text element shares the same font instance.
     private static Font _hudFont;
-    private static Font HudFont => _hudFont != null ? _hudFont
-        : (_hudFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
+    private static Font HudFont
+    {
+        get
+        {
+            if (_hudFont != null) return _hudFont;
+            _hudFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (_hudFont == null) _hudFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            if (_hudFont == null) _hudFont = Font.CreateDynamicFontFromOSFont("Arial", 14);
+            return _hudFont;
+        }
+    }
 
     private void BuildHUD()
     {
